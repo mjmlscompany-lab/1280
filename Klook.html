@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>상세페이지 통이미지 압축 툴 v4</title>
+    <title>상세페이지 통이미지 압축 툴 v5</title>
     <style>
         body { font-family: 'Malgun Gothic', sans-serif; padding: 30px; background-color: #f9f9f9; color: #333; max-width: 800px; margin: 0 auto; }
         .container { background: #fff; padding: 30px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.08); }
@@ -22,11 +22,11 @@
 <body>
 
 <div class="container">
-    <h2>⚡ 초대형 통이미지 전용 압축 추출 툴</h2>
-    <p>설정 기준: 너비 <b>1280px 고정</b> | 용량 <b>4000KB 이내</b> | 브라우저 제한 해제 및 강제 다운로드</p>
+    <h2>⚡ 초대형 통이미지 전용 압축 추출 툴 (엔진 전면 개조)</h2>
+    <p>설정 기준: 너비 <b>1280px 고정</b> | 용량 <b>4000KB 이내</b> | 무조건 1장 자동 다운로드</p>
     
     <div class="upload-box" onclick="document.getElementById('imageInput').click()">
-        📂 클릭하여 실험용 이미지 업로드 (1장 강제 추출)
+        📂 클릭하여 이미지 업로드 (초장문 1장 강제 추출)
         <input type="file" id="imageInput" accept="image/*">
     </div>
 
@@ -46,12 +46,13 @@ const resultInfo = document.getElementById('resultInfo');
 
 const MAX_TARGET_SIZE = 4000 * 1024; // 4000KB
 const TARGET_WIDTH = 1280;
+const CHUNK_HEIGHT = 8000; // 브라우저가 안전하게 처리할 수 있는 조각 높이 단위
 
 imageInput.addEventListener('change', function(e) {
     const file = e.target.files[0];
     if (!file) return;
 
-    updateStatus("processing", "⌛ 1단계: 초장문 파일 분석 및 가상 메모리 로드 중...");
+    updateStatus("processing", "⌛ 1단계: 대용량 이미지 가상 버퍼 로딩 중...");
     resultInfo.style.display = "none";
 
     const reader = new FileReader();
@@ -60,48 +61,65 @@ imageInput.addEventListener('change', function(e) {
         const img = new Image();
         img.src = event.target.result;
         img.onload = function() {
-            updateStatus("processing", "⌛ 2단계: 안전 규격 하이브리드 캔버스 생성 중...");
+            updateStatus("processing", "⌛ 2단계: 초장문 장벽 해제 및 분할 리사이징 연산 중...");
 
             setTimeout(() => {
-                const canvas = document.createElement('canvas');
-                const ctx = canvas.getContext('2d');
-                
-                // 가로 너비 1280px 비율 계산
-                canvas.width = TARGET_WIDTH;
-                canvas.height = Math.floor(img.height * (TARGET_WIDTH / img.width));
+                const scale = TARGET_WIDTH / img.width;
+                const finalWidth = TARGET_WIDTH;
+                const finalHeight = Math.floor(img.height * scale);
 
+                // 최종 합본을 담을 메인 도화지 생성
+                const mainCanvas = document.createElement('canvas');
+                mainCanvas.width = finalWidth;
+                mainCanvas.height = finalHeight;
+                const mainCtx = mainCanvas.getContext('2d');
+                mainCtx.fillStyle = "#fff";
+                mainCtx.fillRect(0, 0, finalWidth, finalHeight);
+
+                // 원본을 쪼개서 리사이징 후 합본 캔버스에 이어붙이기
                 try {
-                    // 흰색 배경 기본 깔기
-                    ctx.fillStyle = "#fff";
-                    ctx.fillRect(0, 0, canvas.width, canvas.height);
-                    
-                    // 메모리 다운 방지를 위한 저수준 드로잉 연산
-                    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                    let sourceY = 0;
+                    while (sourceY < img.height) {
+                        let currentChunkHeight = Math.min(CHUNK_HEIGHT, img.height - sourceY);
+                        
+                        // 임시 조각 도화지
+                        const chunkCanvas = document.createElement('canvas');
+                        chunkCanvas.width = img.width;
+                        chunkCanvas.height = currentChunkHeight;
+                        const chunkCtx = chunkCanvas.getContext('2d');
+                        
+                        // 원본 조각 잘라내기
+                        chunkCtx.drawImage(img, 0, sourceY, img.width, currentChunkHeight, 0, 0, img.width, currentChunkHeight);
+                        
+                        // 메인 도화지에 스케일 다운하여 이어붙이기
+                        mainCtx.drawImage(chunkCanvas, 0, 0, img.width, currentChunkHeight, 0, Math.floor(sourceY * scale), finalWidth, Math.floor(currentChunkHeight * scale));
+                        
+                        sourceY += currentChunkHeight;
+                    }
                 } catch (err) {
-                    updateStatus("error", "❌ 브라우저 렌더링 한계를 넘어섰습니다. 이미지를 약간만 줄이거나 다른 브라우저를 이용해주세요.");
+                    updateStatus("error", "❌ 이미지 분할 렌더링 중 오류가 발생했습니다.");
                     return;
                 }
 
-                // 압축 단계
+                // 3단계: 이진 탐색 압축 루프 시작
                 let minQ = 0.01;
                 let maxQ = 0.95;
                 let bestBlob = null;
                 let bestQuality = 0.85;
                 let step = 0;
-                const maxSteps = 5; // 속도 향상을 위해 서치 스텝 최적화
+                const maxSteps = 5;
 
-                updateStatus("processing", "⚡ 3단계: 용량 최적화 분석 및 파일 빌드 중...");
+                updateStatus("processing", "⚡ 3단계: 4000KB 맞춤 최적화 알고리즘 가동 중...");
 
                 function runBinarySearch() {
                     let midQ = (minQ + maxQ) / 2;
 
                     if (step >= maxSteps) {
-                        // 결과가 있든 없든 무조건 강제로 1장 출력 진행
                         if (bestBlob) {
-                            triggerDownload(bestBlob, bestQuality, canvas);
+                            triggerDownload(bestBlob, bestQuality, mainCanvas);
                         } else {
-                            canvas.toBlob(function(fallbackBlob) {
-                                triggerDownload(fallbackBlob, minQ, canvas);
+                            mainCanvas.toBlob(function(fallbackBlob) {
+                                triggerDownload(fallbackBlob, minQ, mainCanvas);
                             }, 'image/jpeg', minQ);
                         }
                         return;
@@ -109,7 +127,7 @@ imageInput.addEventListener('change', function(e) {
 
                     step++;
 
-                    canvas.toBlob(function(blob) {
+                    mainCanvas.toBlob(function(blob) {
                         if (!blob) {
                             maxQ = midQ;
                         } else if (blob.size <= MAX_TARGET_SIZE) {
@@ -119,8 +137,7 @@ imageInput.addEventListener('change', function(e) {
                         } else {
                             maxQ = midQ; 
                         }
-                        // 가비지 컬렉션을 완벽하게 보장하기 위해 대기 시간 부여
-                        setTimeout(runBinarySearch, 50);
+                        setTimeout(runBinarySearch, 40);
                     }, 'image/jpeg', midQ);
                 }
 
@@ -138,28 +155,25 @@ function updateStatus(type, msg) {
 
 function triggerDownload(blob, quality, canvas) {
     if (!blob) {
-        updateStatus("error", "❌ 추출 파일을 생성하지 못했습니다. 원본 세로 길이가 브라우저 한도를 초과했습니다.");
+        updateStatus("error", "❌ 최종 이미지 빌드 실패. 다른 브라우저에서 시도해 주세요.");
         return;
     }
 
-    updateStatus("success", "🎉 최적화 압축 완료! 즉시 1장 통이미지 다운로드를 시작합니다.");
+    updateStatus("success", "🎉 브라우저 한계 돌파 성공! 1장 통압축 다운로드를 시작합니다.");
 
     const blobUrl = URL.createObjectURL(blob);
 
-    // 결과 텍스트 바인딩
     document.getElementById('resDim').textContent = `${canvas.width}px x ${canvas.height}px`;
     document.getElementById('resSize').textContent = `${(blob.size / 1024).toFixed(2)} KB`;
     document.getElementById('resQual').textContent = `${Math.round(quality * 100)}`;
     resultInfo.style.display = "block";
 
-    // 다운로드 트리거 링크 강제 클릭
     const a = document.createElement('a');
     a.href = blobUrl;
-    a.download = `ready_1280_pass.jpg`;
+    a.download = `optimized_1280_pass.jpg`;
     document.body.appendChild(a);
     a.click();
     
-    // 청소 및 메모리 누수 방지
     setTimeout(() => {
         document.body.removeChild(a);
         URL.revokeObjectURL(blobUrl);
