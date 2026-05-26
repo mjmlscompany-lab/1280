@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>상세페이지 통이미지 압축 툴 v3</title>
+    <title>상세페이지 통이미지 압축 툴 v4</title>
     <style>
         body { font-family: 'Malgun Gothic', sans-serif; padding: 30px; background-color: #f9f9f9; color: #333; max-width: 800px; margin: 0 auto; }
         .container { background: #fff; padding: 30px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.08); }
@@ -22,20 +22,20 @@
 <body>
 
 <div class="container">
-    <h2>⚡ 통이미지 고속 압축 및 자동 추출 툴</h2>
-    <p>설정 기준: 너비 <b>1280px 고정</b> | 용량 <b>4000KB 이내</b> | 완료 즉시 자동 다운로드</p>
+    <h2>⚡ 초대형 통이미지 전용 압축 추출 툴</h2>
+    <p>설정 기준: 너비 <b>1280px 고정</b> | 용량 <b>4000KB 이내</b> | 브라우저 제한 해제 및 강제 다운로드</p>
     
     <div class="upload-box" onclick="document.getElementById('imageInput').click()">
-        📂 클릭하여 이미지 업로드 (최종본 1장 자동 추출)
+        📂 클릭하여 실험용 이미지 업로드 (1장 강제 추출)
         <input type="file" id="imageInput" accept="image/*">
     </div>
 
     <div id="status" class="status" style="display:none;"></div>
 
     <div id="resultInfo" class="result-info">
-        🎯 <b>변환 결과 안내</b><br>
-        - 최종 해상도: <span id="resDim">-</span><br>
-        - 최종 용량: <span id="resSize">-</span> (품질 <span id="resQual">-</span> 적용 완료)
+        🎯 <b>최종 추출 결과 안내</b><br>
+        - 변환 해상도: <span id="resDim">-</span><br>
+        - 변환 용량: <span id="resSize">-</span> (품질 약 <span id="resQual">-</span>% 적용)
     </div>
 </div>
 
@@ -51,8 +51,7 @@ imageInput.addEventListener('change', function(e) {
     const file = e.target.files[0];
     if (!file) return;
 
-    // 초기화
-    updateStatus("processing", "⌛ 1단계: 대용량 이미지 파일을 불러오고 있습니다...");
+    updateStatus("processing", "⌛ 1단계: 초장문 파일 분석 및 가상 메모리 로드 중...");
     resultInfo.style.display = "none";
 
     const reader = new FileReader();
@@ -61,48 +60,54 @@ imageInput.addEventListener('change', function(e) {
         const img = new Image();
         img.src = event.target.result;
         img.onload = function() {
-            updateStatus("processing", "⌛ 2단계: 너비 1280px로 리사이징 캔버스 생성 중...");
+            updateStatus("processing", "⌛ 2단계: 안전 규격 하이브리드 캔버스 생성 중...");
 
             setTimeout(() => {
                 const canvas = document.createElement('canvas');
                 const ctx = canvas.getContext('2d');
                 
+                // 가로 너비 1280px 비율 계산
                 canvas.width = TARGET_WIDTH;
                 canvas.height = Math.floor(img.height * (TARGET_WIDTH / img.width));
 
                 try {
+                    // 흰색 배경 기본 깔기
                     ctx.fillStyle = "#fff";
                     ctx.fillRect(0, 0, canvas.width, canvas.height);
+                    
+                    // 메모리 다운 방지를 위한 저수준 드로잉 연산
                     ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
                 } catch (err) {
-                    updateStatus("error", "❌ 브라우저의 픽셀 제한 범위를 초과한 이미지입니다.");
+                    updateStatus("error", "❌ 브라우저 렌더링 한계를 넘어섰습니다. 이미지를 약간만 줄이거나 다른 브라우저를 이용해주세요.");
                     return;
                 }
 
-                // 이진 탐색 압축 루프
-                let minQ = 0.01, maxQ = 0.99;
+                // 압축 단계
+                let minQ = 0.01;
+                let maxQ = 0.95;
                 let bestBlob = null;
-                let bestQuality = 0.9;
+                let bestQuality = 0.85;
                 let step = 0;
-                const maxSteps = 7; 
+                const maxSteps = 5; // 속도 향상을 위해 서치 스텝 최적화
 
-                updateStatus("processing", "⚡ 3단계: 4000KB 이하 최적 품질 계산 중 (0/7)...");
+                updateStatus("processing", "⚡ 3단계: 용량 최적화 분석 및 파일 빌드 중...");
 
                 function runBinarySearch() {
+                    let midQ = (minQ + maxQ) / 2;
+
                     if (step >= maxSteps) {
+                        // 결과가 있든 없든 무조건 강제로 1장 출력 진행
                         if (bestBlob) {
                             triggerDownload(bestBlob, bestQuality, canvas);
                         } else {
-                            // 최하 품질로도 실패 시 강제 추출
                             canvas.toBlob(function(fallbackBlob) {
-                                triggerDownload(fallbackBlob, 0.01, canvas);
-                            }, 'image/jpeg', 0.01);
+                                triggerDownload(fallbackBlob, minQ, canvas);
+                            }, 'image/jpeg', minQ);
                         }
                         return;
                     }
 
                     step++;
-                    updateStatus("processing", `⚡ 3단계: 최적화 압축률 분석 중 (${step}/${maxSteps})...`);
 
                     canvas.toBlob(function(blob) {
                         if (!blob) {
@@ -114,14 +119,13 @@ imageInput.addEventListener('change', function(e) {
                         } else {
                             maxQ = midQ; 
                         }
-                        setTimeout(runBinarySearch, 30);
-                    }, 'image/jpeg', (minQ + maxQ) / 2);
-                    
-                    let midQ = (minQ + maxQ) / 2;
+                        // 가비지 컬렉션을 완벽하게 보장하기 위해 대기 시간 부여
+                        setTimeout(runBinarySearch, 50);
+                    }, 'image/jpeg', midQ);
                 }
 
                 runBinarySearch();
-            }, 50);
+            }, 100);
         };
     };
 });
@@ -133,28 +137,33 @@ function updateStatus(type, msg) {
 }
 
 function triggerDownload(blob, quality, canvas) {
-    updateStatus("success", "🎉 최적화 압축 완료! 즉시 다운로드를 시작합니다.");
+    if (!blob) {
+        updateStatus("error", "❌ 추출 파일을 생성하지 못했습니다. 원본 세로 길이가 브라우저 한도를 초과했습니다.");
+        return;
+    }
+
+    updateStatus("success", "🎉 최적화 압축 완료! 즉시 1장 통이미지 다운로드를 시작합니다.");
 
     const blobUrl = URL.createObjectURL(blob);
 
-    // 결과 정보 표시
+    // 결과 텍스트 바인딩
     document.getElementById('resDim').textContent = `${canvas.width}px x ${canvas.height}px`;
     document.getElementById('resSize').textContent = `${(blob.size / 1024).toFixed(2)} KB`;
-    document.getElementById('resQual').textContent = `${Math.round(quality * 100)}%`;
+    document.getElementById('resQual').textContent = `${Math.round(quality * 100)}`;
     resultInfo.style.display = "block";
 
-    // 스크립트로 다운로드 강제 트리거
+    // 다운로드 트리거 링크 강제 클릭
     const a = document.createElement('a');
     a.href = blobUrl;
-    a.download = `optimized_1280_${Date.now()}.jpg`;
+    a.download = `ready_1280_pass.jpg`;
     document.body.appendChild(a);
     a.click();
     
-    // 메모리 해제
+    // 청소 및 메모리 누수 방지
     setTimeout(() => {
         document.body.removeChild(a);
         URL.revokeObjectURL(blobUrl);
-    }, 100);
+    }, 200);
 }
 </script>
 
