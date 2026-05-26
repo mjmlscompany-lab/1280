@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>상세페이지 이미지 최적화 툴</title>
+    <style>
+        body {
+            font-family: 'Malgun Gothic', sans-serif;
+            padding: 30px;
+            background-color: #f9f9f9;
+            color: #333;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        .container {
+            background: #fff;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.08);
+        }
+        h2 { color: #5e17eb; margin-top: 0; }
+        .upload-box {
+            border: 2px dashed #5e17eb;
+            padding: 30px;
+            text-align: center;
+            border-radius: 8px;
+            cursor: pointer;
+            background: #f4f0ff;
+            transition: 0.3s;
+        }
+        .upload-box:hover { background: #eae2ff; }
+        input[type="file"] { display: none; }
+        .info-table {
+            width: 100%;
+            margin-top: 20px;
+            border-collapse: collapse;
+            display: none;
+        }
+        .info-table th, .info-table td {
+            border: 1px solid #ddd;
+            padding: 12px;
+            text-align: left;
+        }
+        .info-table th { background-color: #f2f2f2; width: 30%; }
+        .status {
+            margin-top: 15px;
+            font-weight: bold;
+            color: #2c3e50;
+        }
+        #downloadBtn {
+            display: none;
+            margin-top: 20px;
+            padding: 12px 25px;
+            background-color: #5e17eb;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 16px;
+            cursor: pointer;
+            font-weight: bold;
+            width: 100%;
+        }
+        #downloadBtn:hover { background-color: #4a10c2; }
+        .preview-container {
+            margin-top: 25px;
+            text-align: center;
+            display: none;
+        }
+        #preview {
+            max-width: 100%;
+            height: auto;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>⚡ 이미지 압축 및 리사이징 툴</h2>
+    <p>설정 기준: 너비 <b>1280px 고정</b> | 용량 <b>4000KB 이내</b> 자동 품질 조절</p>
+    
+    <div class="upload-box" onclick="document.getElementById('imageInput').click()">
+        📂 클릭하여 상세페이지 이미지 업로드 (JPG, PNG 등)
+        <input type="file" id="imageInput" accept="image/*">
+    </div>
+
+    <div id="status" class="status"></div>
+
+    <table id="infoTable" class="info-table">
+        <tr>
+            <th>구분</th>
+            <th>원본 이미지</th>
+            <th>최적화 결과 (JPG)</th>
+        </tr>
+        <tr>
+            <td>해상도 (너비 x 높이)</td>
+            <td id="origDim">-</td>
+            <td id="targetDim">-</td>
+        </tr>
+        <tr>
+            <td>파일 용량</td>
+            <td id="origSize">-</td>
+            <td id="targetSize" style="font-weight: bold; color: #5e17eb;">-</td>
+        </tr>
+        <tr>
+            <td>압축 적용 품질</td>
+            <td>-</td>
+            <td id="appliedQuality">-</td>
+        </tr>
+    </table>
+
+    <button id="downloadBtn">📥 최적화된 JPG 이미지 다운로드</button>
+
+    <div class="preview-container" id="previewContainer">
+        <h3>미리보기</h3>
+        <img id="preview" alt="압축 결과 미리보기">
+    </div>
+</div>
+
+<script>
+const imageInput = document.getElementById('imageInput');
+const statusDiv = document.getElementById('status');
+const infoTable = document.getElementById('infoTable');
+const downloadBtn = document.getElementById('downloadBtn');
+const previewContainer = document.getElementById('previewContainer');
+const previewImg = document.getElementById('preview');
+
+const MAX_TARGET_SIZE = 4000 * 1024; // 4000KB를 바이트로 변환 (4,096,000 Bytes)
+const TARGET_WIDTH = 1280;
+
+let optimizedBlob = null;
+
+imageInput.addEventListener('change', function(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    statusDiv.textContent = "이미지를 처리하는 중입니다. 잠시만 기다려주세요...";
+    infoTable.style.display = "none";
+    downloadBtn.style.display = "none";
+    previewContainer.style.display = "none";
+
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = function(event) {
+        const img = new Image();
+        img.src = event.target.result;
+        img.onload = function() {
+            // 1. 원본 정보 표시
+            document.getElementById('origDim').textContent = `${img.width}px x ${img.height}px`;
+            document.getElementById('origSize').textContent = `${(file.size / 1024).toFixed(2)} KB`;
+
+            // 2. 캔버스 생성 및 리사이징 비율 계산 (너비 1280px 고정)
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            
+            canvas.width = TARGET_WIDTH;
+            canvas.height = img.height * (TARGET_WIDTH / img.width);
+
+            // 흰색 배경 채우기 (PNG 투명 영역 처리용)
+            ctx.fillStyle = "#fff";
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+            // 3. 이진 탐색으로 4000KB 이내의 최적 품질 찾기
+            let minQ = 0.01, maxQ = 1.0;
+            let bestBlob = null;
+            let bestQuality = 0.9;
+            let attempts = 0;
+
+            function optimizeLoop() {
+                if (attempts > 8) { // 8번의 탐색이면 충분히 수렴함
+                    finalize(bestBlob, bestQuality, canvas);
+                    return;
+                }
+                
+                attempts++;
+                let midQ = (minQ + maxQ) / 2;
+                
+                canvas.toBlob(function(blob) {
+                    if (blob.size <= MAX_TARGET_SIZE) {
+                        // 용량 조건 만족 -> 품질을 더 높여봄
+                        bestBlob = blob;
+                        bestQuality = midQ;
+                        minQ = midQ;
+                    } else {
+                        // 용량 초과 -> 품질을 더 낮춤
+                        maxQ = midQ;
+                    }
+                    optimizeLoop();
+                }, 'image/jpeg', midQ);
+            }
+
+            optimizeLoop();
+        };
+    };
+});
+
+function finalize(blob, quality, canvas) {
+    if (!blob) {
+        // 극단적으로 길어서 최하 품질(0.01)로도 4000KB를 넘기는 특수 경우 처리
+        statusDiv.textContent = "⚠️ 이미지가 너무 길어 4000KB 맞춤에 실패했습니다. 최저 품질로 추출합니다.";
+        canvas.toBlob(function(fallbackBlob) {
+            displayResults(fallbackBlob, 0.01, canvas);
+        }, 'image/jpeg', 0.01);
+    } else {
+        statusDiv.textContent = "✅ 압축 및 리사이징 완료!";
+        displayResults(blob, quality, canvas);
+    }
+}
+
+function displayResults(blob, quality, canvas) {
+    optimizedBlob = blob;
+    const blobUrl = URL.createObjectURL(blob);
+
+    // 테이블 갱신
+    document.getElementById('targetDim').textContent = `${canvas.width}px x ${canvas.height}px`;
+    document.getElementById('targetSize').textContent = `${(blob.size / 1024).toFixed(2)} KB`;
+    document.getElementById('appliedQuality').textContent = `${Math.round(quality * 100)}%`;
+
+    // 컴포넌트들 노출
+    infoTable.style.display = "table";
+    downloadBtn.style.display = "block";
+    previewImg.src = blobUrl;
+    previewContainer.style.display = "block";
+
+    // 다운로드 버튼 링크 연결
+    downloadBtn.onclick = function() {
+        const a = document.createElement('a');
+        a.href = blobUrl;
+        a.download = `optimized_1280_${Date.now()}.jpg`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+    };
+}
+</script>
+
+</body>
+</html>
