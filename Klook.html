@@ -47,7 +47,7 @@ canvas{display:block;max-width:100%;max-height:calc(100vh - 190px);width:auto;he
 <body>
 <section id="landing">
   <h1>사진에 주석 달기</h1>
-  <p>영역을 표시하고, 텍스트를 달고, 필요 없는 건 지우세요.</p>
+  <p id="landingHint">영역을 표시하고, 텍스트를 달고, 필요 없는 건 지우세요.</p>
   <div class="drop" id="drop">
     <label class="btn primary">파일 선택<input id="file" type="file" accept="image/*" hidden></label>
     <div style="margin-top:14px">또는 파일을 끌어다 놓기</div>
@@ -112,19 +112,36 @@ canvas{display:block;max-width:100%;max-height:calc(100vh - 190px);width:auto;he
   }
   $('m-anno').onclick=()=>setMode('anno');$('m-pixel').onclick=()=>setMode('pixel');
 
+  function showImage(img){
+    base.width=cv.width=img.naturalWidth;base.height=cv.height=img.naturalHeight;
+    bctx.clearRect(0,0,base.width,base.height);bctx.drawImage(img,0,0);
+    annos=[];history=[];loaded=true;$('undo').disabled=true;
+    $('landing').hidden=true;$('app').hidden=false;
+    render();
+  }
   function load(file){
     if(!file||!file.type.startsWith('image/'))return;
     if(file.size>100*1024*1024){alert('파일 크기는 최대 100MB까지 가능합니다.');return}
     const img=new Image();
-    img.onload=()=>{
-      base.width=cv.width=img.naturalWidth;base.height=cv.height=img.naturalHeight;
-      bctx.clearRect(0,0,base.width,base.height);bctx.drawImage(img,0,0);
-      annos=[];history=[];loaded=true;$('undo').disabled=true;
-      $('landing').hidden=true;$('app').hidden=false;
-      render();URL.revokeObjectURL(img.src);
+    const objectUrl=URL.createObjectURL(file);
+    img.onload=()=>{showImage(img);URL.revokeObjectURL(objectUrl)};
+    img.onerror=()=>{URL.revokeObjectURL(objectUrl);alert('이미지를 불러오지 못했습니다. 다른 파일을 선택해 주세요.')};
+    img.src=objectUrl;
+  }
+  function loadFromUrl(){
+    const params=new URLSearchParams(window.location.search);
+    const imageUrl=params.get('image');
+    if(!imageUrl)return;
+    $('landingHint').textContent='연결된 이미지를 불러오는 중입니다…';
+    const img=new Image();
+    // 외부 이미지도 캔버스 편집 및 PNG 다운로드가 가능하도록 CORS 요청
+    img.crossOrigin='anonymous';
+    img.onload=()=>showImage(img);
+    img.onerror=()=>{
+      $('landingHint').textContent='이미지를 자동으로 불러오지 못했습니다. 아래에서 파일을 직접 선택해 주세요.';
+      alert('전달된 이미지 주소를 불러오지 못했습니다. 이미지 서버의 CORS 설정에 따라 자동 편집이 제한될 수 있습니다.');
     };
-    img.onerror=()=>alert('이미지를 불러오지 못했습니다. 다른 파일을 선택해 주세요.');
-    img.src=URL.createObjectURL(file);
+    try{img.src=imageUrl}catch(err){img.onerror()}
   }
   $('file').onchange=e=>load(e.target.files[0]);
   $('file2').onchange=e=>load(e.target.files[0]);
@@ -258,6 +275,7 @@ canvas{display:block;max-width:100%;max-height:calc(100vh - 190px);width:auto;he
     cv.toBlob(b=>{const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='edited.png';document.body.appendChild(a);a.click();a.remove()},'image/png');
   };
   setTool('rect');
+  loadFromUrl();
 })();
 </script>
 </body>
