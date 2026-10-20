@@ -159,7 +159,7 @@ canvas{display:block;max-width:100%;width:auto;height:auto;touch-action:none}
     stage.appendChild(cv);wrap.append(head,stage);$('pages').appendChild(wrap);
     p.title=title;pages.push(p);renumber();
     cv.style.cursor=tool==='text'?'text':'crosshair';
-    sv.onclick=()=>{commitText();cv.toBlob(b=>dl(b,'edited-'+(pages.indexOf(p)+1)+'.png'),'image/png')};
+    sv.onclick=()=>{commitText();try{cv.toBlob(b=>dl(b,'edited-'+(pages.indexOf(p)+1)+'.png'),'image/png')}catch(err){taintMsg()}};
     rm.onclick=()=>{
       if(!confirm('이 이미지를 삭제할까요?'))return;
       commitText();pages.splice(pages.indexOf(p),1);history=history.filter(h=>h.p!==p);
@@ -283,7 +283,8 @@ canvas{display:block;max-width:100%;width:auto;height:auto;touch-action:none}
   document.addEventListener('keydown',e=>{
     if((e.ctrlKey||e.metaKey)&&e.key==='z'&&!ed){e.preventDefault();$('undo').click()}
   });
-  $('saveAll').onclick=()=>{
+  $('saveAll').onclick=()=>{try{saveAll()}catch(err){taintMsg()}};
+  function saveAll(){
     commitText();if(!pages.length)return;
     const W=Math.max(...pages.map(p=>p.cv.width));
     const hs=pages.map(p=>Math.round(p.cv.height*W/p.cv.width));
@@ -292,8 +293,17 @@ canvas{display:block;max-width:100%;width:auto;height:auto;touch-action:none}
     const o=document.createElement('canvas');o.width=W;o.height=H;const c=o.getContext('2d');
     let y=0;pages.forEach((p,i)=>{c.drawImage(p.cv,0,y,W,hs[i]);y+=hs[i]});
     o.toBlob(b=>dl(b,'edited-all.png'),'image/png');
-  };
+  }
+  function taintMsg(){alert('이 이미지는 원본 서버가 외부 사용(CORS)을 허용하지 않아 저장할 수 없습니다. 이미지를 같은 사이트에 두거나 서버의 CORS를 허용해 주세요.')}
   setTool('rect');
+  // ?image=URL (여러 개 가능: ?image=a&image=b) 로 이미지 불러오기
+  const urls=new URLSearchParams(location.search).getAll('image');
+  Promise.all(urls.map(u=>new Promise(res=>{
+    const im=new Image();im.crossOrigin='anonymous';im.referrerPolicy='no-referrer';
+    im.onload=()=>res(im);
+    im.onerror=()=>{const i2=new Image();i2.referrerPolicy='no-referrer';i2.onload=()=>res(i2);i2.onerror=()=>res(null);i2.src=u}; // CORS 불가 시 보기만 가능
+    im.src=u;
+  }))).then(ims=>ims.forEach(im=>im&&addPage(im)));
 })();
 </script>
 </body>
