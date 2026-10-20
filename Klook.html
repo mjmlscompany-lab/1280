@@ -133,8 +133,46 @@ canvas{display:block;max-width:100%;width:auto;height:auto;touch-action:none}
     let done=false;
     function flush(){if(done||n<fs.filter(f=>f.type.startsWith('image/')&&f.size<=100*1024*1024).length)return;done=true;imgs.forEach(im=>{if(im){addPage(im);URL.revokeObjectURL(im.src)}})}
   }
-  $('file').onchange=e=>pick(e.target);
-  $('file2').onchange=e=>pick(e.target);
+// URL에 전달된 이미지 주소를 편집기에 자동으로 불러오기
+function loadFromUrl(url) {
+  if (!url) return;
+
+  const img = new Image();
+  img.crossOrigin = 'anonymous';
+
+  img.onload = () => {
+    base.width = cv.width = img.naturalWidth;
+    base.height = cv.height = img.naturalHeight;
+
+    bctx.clearRect(0, 0, base.width, base.height);
+    bctx.drawImage(img, 0, 0);
+
+    annos = [];
+    history = [];
+    loaded = true;
+
+    $('undo').disabled = true;
+    $('landing').hidden = true;
+    $('app').hidden = false;
+
+    render();
+  };
+
+  img.onerror = () => {
+    alert('이미지를 편집기에 불러오지 못했습니다.');
+  };
+
+  img.src = url;
+}
+
+// 페이지 주소에서 이미지 주소 읽기
+const params = new URLSearchParams(window.location.search);
+const imageUrls = params.getAll('image');
+
+// 우선 첫 번째 이미지를 편집기에 자동으로 불러오기
+if (imageUrls.length > 0) {
+  loadFromUrl(imageUrls[0]);
+}
   const drop=$('drop');
   drop.ondragover=e=>{e.preventDefault();drop.classList.add('hot')};
   drop.ondragleave=()=>drop.classList.remove('hot');
