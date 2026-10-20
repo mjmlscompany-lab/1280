@@ -1,241 +1,264 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>상세페이지 이미지 최적화 툴</title>
-    <style>
-        body {
-            font-family: 'Malgun Gothic', sans-serif;
-            padding: 30px;
-            background-color: #f9f9f9;
-            color: #333;
-            max-width: 800px;
-            margin: 0 auto;
-        }
-        .container {
-            background: #fff;
-            padding: 30px;
-            border-radius: 12px;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.08);
-        }
-        h2 { color: #5e17eb; margin-top: 0; }
-        .upload-box {
-            border: 2px dashed #5e17eb;
-            padding: 30px;
-            text-align: center;
-            border-radius: 8px;
-            cursor: pointer;
-            background: #f4f0ff;
-            transition: 0.3s;
-        }
-        .upload-box:hover { background: #eae2ff; }
-        input[type="file"] { display: none; }
-        .info-table {
-            width: 100%;
-            margin-top: 20px;
-            border-collapse: collapse;
-            display: none;
-        }
-        .info-table th, .info-table td {
-            border: 1px solid #ddd;
-            padding: 12px;
-            text-align: left;
-        }
-        .info-table th { background-color: #f2f2f2; width: 30%; }
-        .status {
-            margin-top: 15px;
-            font-weight: bold;
-            color: #2c3e50;
-        }
-        #downloadBtn {
-            display: none;
-            margin-top: 20px;
-            padding: 12px 25px;
-            background-color: #5e17eb;
-            color: white;
-            border: none;
-            border-radius: 6px;
-            font-size: 16px;
-            cursor: pointer;
-            font-weight: bold;
-            width: 100%;
-        }
-        #downloadBtn:hover { background-color: #4a10c2; }
-        .preview-container {
-            margin-top: 25px;
-            text-align: center;
-            display: none;
-        }
-        #preview {
-            max-width: 100%;
-            height: auto;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-        }
-    </style>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>사진 주석 편집기</title>
+<style>
+:root{--bg:#f4f6f5;--panel:#fff;--ink:#1f2a24;--mute:#6b7771;--line:#d9e0dc;--accent:#00a82d;--accent-ink:#fff;--checker:#e3e8e5;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#121715;--panel:#1b221f;--ink:#e7eeea;--mute:#98a59e;--line:#2f3a35;--accent:#2fd45e;--accent-ink:#06210f;--checker:#232b27}}
+:root[data-theme="dark"]{--bg:#121715;--panel:#1b221f;--ink:#e7eeea;--mute:#98a59e;--line:#2f3a35;--accent:#2fd45e;--accent-ink:#06210f;--checker:#232b27}
+html{scroll-padding-top:env(safe-area-inset-top,0px);height:100%}
+*{box-sizing:border-box}
+body{margin:0;min-height:100%;background:var(--bg);color:var(--ink);font-family:"Pretendard","Noto Sans KR",-apple-system,"Malgun Gothic",sans-serif;display:flex;flex-direction:column}
+[hidden]{display:none!important}
+button,label.btn{font:inherit;font-size:14px;padding:8px 14px;border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:8px;cursor:pointer}
+button:hover,label.btn:hover{border-color:var(--accent)}
+button:focus-visible,label.btn:focus-within,input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+button.on{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+button.primary,label.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);font-weight:600}
+button:disabled{opacity:.4;cursor:default}
+#landing{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;text-align:center}
+#landing h1{font-size:30px;margin:0 0 8px}
+#landing p{color:var(--mute);margin:0 0 24px}
+.drop{width:min(560px,100%);padding:48px 24px;border:2px dashed var(--line);border-radius:14px;background:var(--panel)}
+.drop.hot{border-color:var(--accent)}
+.drop label{font-size:16px;padding:12px 28px}
+.drop small{display:block;margin-top:16px;color:var(--mute)}
+#app{flex:1;display:flex;flex-direction:column;min-height:0}
+.bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:10px 14px;background:var(--panel);border-bottom:1px solid var(--line)}
+.bar.sub{font-size:13px;color:var(--mute);min-height:48px}
+.sp{margin-left:auto;display:flex;gap:6px;flex-wrap:wrap}
+.grp{display:none;gap:12px;align-items:center;flex-wrap:wrap}
+.grp.show{display:flex}
+input[type=range]{width:120px;accent-color:var(--accent)}
+input[type=color]{width:36px;height:30px;padding:0;border:1px solid var(--line);border-radius:6px;background:none;cursor:pointer}
+main{flex:1;display:flex;align-items:center;justify-content:center;padding:16px;overflow:auto}
+.stage{position:relative;line-height:0;max-width:100%;background:repeating-conic-gradient(var(--checker) 0 25%,transparent 0 50%) 0 0/16px 16px;box-shadow:0 2px 12px rgba(0,0,0,.2)}
+canvas{display:block;max-width:100%;max-height:calc(100vh - 190px);width:auto;height:auto;touch-action:none}
+.ti{position:absolute;margin:0;padding:0;border:1px dashed var(--accent);background:rgba(255,255,255,.6);outline:none;font-weight:700;line-height:1.2;min-width:60px;font-family:"Pretendard","Noto Sans KR","Malgun Gothic",sans-serif}
+.seg{display:flex}
+.seg button{border-radius:0}
+.seg button:first-child{border-radius:8px 0 0 8px}
+.seg button:last-child{border-radius:0 8px 8px 0;border-left:0}
+</style>
 </head>
 <body>
+<section id="landing">
+  <h1>사진에 주석 달기</h1>
+  <p>영역을 표시하고, 텍스트를 달고, 필요 없는 건 지우세요.</p>
+  <div class="drop" id="drop">
+    <label class="btn primary">파일 선택<input id="file" type="file" accept="image/*" hidden></label>
+    <div style="margin-top:14px">또는 파일을 끌어다 놓기</div>
+    <small>이미지 파일 형식 지원 (최대 100MB)</small>
+  </div>
+</section>
 
-<div class="container">
-    <h2>⚡ 이미지 압축 및 리사이징 툴</h2>
-    <p>설정 기준: 너비 <b>1280px 고정</b> | 용량 <b>4000KB 이내</b> 자동 품질 조절</p>
-    
-    <div class="upload-box" onclick="document.getElementById('imageInput').click()">
-        📂 클릭하여 상세페이지 이미지 업로드 (JPG, PNG 등)
-        <input type="file" id="imageInput" accept="image/*">
+<section id="app" hidden>
+  <div class="bar" role="toolbar" aria-label="도구">
+    <button id="t-rect" class="on">영역 표시</button>
+    <button id="t-text">텍스트</button>
+    <button id="t-erase">지우기</button>
+    <div class="sp">
+      <button id="undo" disabled>되돌리기</button>
+      <label class="btn">새 이미지<input id="file2" type="file" accept="image/*" hidden></label>
+      <button id="save" class="primary">다운로드</button>
     </div>
-
-    <div id="status" class="status"></div>
-
-    <table id="infoTable" class="info-table">
-        <tr>
-            <th>구분</th>
-            <th>원본 이미지</th>
-            <th>최적화 결과 (JPG)</th>
-        </tr>
-        <tr>
-            <td>해상도 (너비 x 높이)</td>
-            <td id="origDim">-</td>
-            <td id="targetDim">-</td>
-        </tr>
-        <tr>
-            <td>파일 용량</td>
-            <td id="origSize">-</td>
-            <td id="targetSize" style="font-weight: bold; color: #5e17eb;">-</td>
-        </tr>
-        <tr>
-            <td>압축 적용 품질</td>
-            <td>-</td>
-            <td id="appliedQuality">-</td>
-        </tr>
-    </table>
-
-    <button id="downloadBtn">📥 최적화된 JPG 이미지 다운로드</button>
-
-    <div class="preview-container" id="previewContainer">
-        <h3>미리보기</h3>
-        <img id="preview" alt="압축 결과 미리보기">
+  </div>
+  <div class="bar sub">
+    <div class="grp show" id="g-rect">
+      <label>색상 <input id="color1" type="color" value="#ff3b30"></label>
+      <span>이미지 위를 드래그해 영역을 표시합니다.</span>
     </div>
-</div>
+    <div class="grp" id="g-text">
+      <label>색상 <input id="color2" type="color" value="#ff3b30"></label>
+      <label>크기 <input id="tsize" type="range" min="12" max="200" value="48"></label>
+      <span>클릭해서 입력하고, 글자를 끌어서 옮깁니다. 글자를 누르면 수정됩니다.</span>
+    </div>
+    <div class="grp" id="g-erase">
+      <div class="seg" role="group" aria-label="지우기 방식">
+        <button id="m-anno" class="on">주석 지우기</button>
+        <button id="m-pixel">이미지 지우기</button>
+      </div>
+      <label id="esizeWrap" hidden>브러시 <input id="esize" type="range" min="4" max="150" value="30"></label>
+      <span id="ehint">지울 영역 표시나 텍스트를 클릭하거나 드래그합니다.</span>
+    </div>
+  </div>
+  <main>
+    <div class="stage" id="stage"><canvas id="cv"></canvas></div>
+  </main>
+</section>
 
 <script>
-const imageInput = document.getElementById('imageInput');
-const statusDiv = document.getElementById('status');
-const infoTable = document.getElementById('infoTable');
-const downloadBtn = document.getElementById('downloadBtn');
-const previewContainer = document.getElementById('previewContainer');
-const previewImg = document.getElementById('preview');
+(function(){
+  const $=id=>document.getElementById(id);
+  const cv=$('cv'),ctx=cv.getContext('2d'),stage=$('stage');
+  const base=document.createElement('canvas'),bctx=base.getContext('2d');
+  const FONT='"Pretendard","Noto Sans KR","Malgun Gothic",sans-serif';
+  let tool='rect',emode='anno',annos=[],history=[],drag=null,editing=null,loaded=false;
 
-const MAX_TARGET_SIZE = 4000 * 1024; // 4000KB를 바이트로 변환 (4,096,000 Bytes)
-const TARGET_WIDTH = 1280;
+  function setTool(t){
+    tool=t;commitText();
+    ['rect','text','erase'].forEach(k=>{$('t-'+k).classList.toggle('on',k===t);$('g-'+k).classList.toggle('show',k===t)});
+    cv.style.cursor=t==='text'?'text':'crosshair';
+  }
+  ['rect','text','erase'].forEach(k=>$('t-'+k).onclick=()=>setTool(k));
+  function setMode(m){
+    emode=m;
+    $('m-anno').classList.toggle('on',m==='anno');$('m-pixel').classList.toggle('on',m==='pixel');
+    $('esizeWrap').hidden=m!=='pixel';
+    $('ehint').textContent=m==='anno'?'지울 영역 표시나 텍스트를 클릭하거나 드래그합니다.':'드래그해서 이미지의 일부를 투명하게 지웁니다.';
+  }
+  $('m-anno').onclick=()=>setMode('anno');$('m-pixel').onclick=()=>setMode('pixel');
 
-let optimizedBlob = null;
-
-imageInput.addEventListener('change', function(e) {
-    const file = e.target.files[0];
-    if (!file) return;
-
-    statusDiv.textContent = "이미지를 처리하는 중입니다. 잠시만 기다려주세요...";
-    infoTable.style.display = "none";
-    downloadBtn.style.display = "none";
-    previewContainer.style.display = "none";
-
-    const reader = new FileReader();
-    reader.readAsDataURL(file);
-    reader.onload = function(event) {
-        const img = new Image();
-        img.src = event.target.result;
-        img.onload = function() {
-            // 1. 원본 정보 표시
-            document.getElementById('origDim').textContent = `${img.width}px x ${img.height}px`;
-            document.getElementById('origSize').textContent = `${(file.size / 1024).toFixed(2)} KB`;
-
-            // 2. 캔버스 생성 및 리사이징 비율 계산 (너비 1280px 고정)
-            const canvas = document.createElement('canvas');
-            const ctx = canvas.getContext('2d');
-            
-            canvas.width = TARGET_WIDTH;
-            canvas.height = img.height * (TARGET_WIDTH / img.width);
-
-            // 흰색 배경 채우기 (PNG 투명 영역 처리용)
-            ctx.fillStyle = "#fff";
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
-            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-
-            // 3. 이진 탐색으로 4000KB 이내의 최적 품질 찾기
-            let minQ = 0.01, maxQ = 1.0;
-            let bestBlob = null;
-            let bestQuality = 0.9;
-            let attempts = 0;
-
-            function optimizeLoop() {
-                if (attempts > 8) { // 8번의 탐색이면 충분히 수렴함
-                    finalize(bestBlob, bestQuality, canvas);
-                    return;
-                }
-                
-                attempts++;
-                let midQ = (minQ + maxQ) / 2;
-                
-                canvas.toBlob(function(blob) {
-                    if (blob.size <= MAX_TARGET_SIZE) {
-                        // 용량 조건 만족 -> 품질을 더 높여봄
-                        bestBlob = blob;
-                        bestQuality = midQ;
-                        minQ = midQ;
-                    } else {
-                        // 용량 초과 -> 품질을 더 낮춤
-                        maxQ = midQ;
-                    }
-                    optimizeLoop();
-                }, 'image/jpeg', midQ);
-            }
-
-            optimizeLoop();
-        };
+  function load(file){
+    if(!file||!file.type.startsWith('image/'))return;
+    if(file.size>100*1024*1024){alert('파일 크기는 최대 100MB까지 가능합니다.');return}
+    const img=new Image();
+    img.onload=()=>{
+      base.width=cv.width=img.naturalWidth;base.height=cv.height=img.naturalHeight;
+      bctx.clearRect(0,0,base.width,base.height);bctx.drawImage(img,0,0);
+      annos=[];history=[];loaded=true;$('undo').disabled=true;
+      $('landing').hidden=true;$('app').hidden=false;
+      render();URL.revokeObjectURL(img.src);
     };
-});
+    img.onerror=()=>alert('이미지를 불러오지 못했습니다. 다른 파일을 선택해 주세요.');
+    img.src=URL.createObjectURL(file);
+  }
+  $('file').onchange=e=>load(e.target.files[0]);
+  $('file2').onchange=e=>load(e.target.files[0]);
+  const drop=$('drop');
+  drop.ondragover=e=>{e.preventDefault();drop.classList.add('hot')};
+  drop.ondragleave=()=>drop.classList.remove('hot');
+  drop.ondrop=e=>{e.preventDefault();drop.classList.remove('hot');load(e.dataTransfer.files[0])};
 
-function finalize(blob, quality, canvas) {
-    if (!blob) {
-        // 극단적으로 길어서 최하 품질(0.01)로도 4000KB를 넘기는 특수 경우 처리
-        statusDiv.textContent = "⚠️ 이미지가 너무 길어 4000KB 맞춤에 실패했습니다. 최저 품질로 추출합니다.";
-        canvas.toBlob(function(fallbackBlob) {
-            displayResults(fallbackBlob, 0.01, canvas);
-        }, 'image/jpeg', 0.01);
-    } else {
-        statusDiv.textContent = "✅ 압축 및 리사이징 완료!";
-        displayResults(blob, quality, canvas);
+  function drawRect(a){
+    const lw=Math.max(2,cv.width/300);
+    ctx.save();ctx.fillStyle=a.color+'33';ctx.strokeStyle=a.color;ctx.lineWidth=lw;
+    ctx.fillRect(a.x,a.y,a.w,a.h);ctx.strokeRect(a.x,a.y,a.w,a.h);ctx.restore();
+  }
+  function drawText(a){
+    ctx.save();ctx.font='700 '+a.size+'px '+FONT;ctx.fillStyle=a.color;ctx.textBaseline='top';ctx.fillText(a.text,a.x,a.y);ctx.restore();
+  }
+  function render(){
+    ctx.clearRect(0,0,cv.width,cv.height);ctx.drawImage(base,0,0);
+    annos.forEach(a=>{if(a===editing)return;a.type==='rect'?drawRect(a):drawText(a)});
+    if(drag&&drag.rect)drawRect(drag.rect);
+  }
+  function box(a){
+    if(a.type==='rect')return a;
+    ctx.save();ctx.font='700 '+a.size+'px '+FONT;const w=ctx.measureText(a.text).width;ctx.restore();
+    return {x:a.x,y:a.y,w:w,h:a.size*1.2};
+  }
+  function hit(p,type){
+    for(let i=annos.length-1;i>=0;i--){
+      const a=annos[i];if(type&&a.type!==type)continue;
+      const b=box(a);
+      if(p.x>=b.x&&p.x<=b.x+b.w&&p.y>=b.y&&p.y<=b.y+b.h)return a;
     }
-}
+    return null;
+  }
+  function pos(e){const r=cv.getBoundingClientRect();return {x:(e.clientX-r.left)*cv.width/r.width,y:(e.clientY-r.top)*cv.height/r.height}}
+  function scale(){return cv.getBoundingClientRect().width/cv.width}
 
-function displayResults(blob, quality, canvas) {
-    optimizedBlob = blob;
-    const blobUrl = URL.createObjectURL(blob);
+  function snap(withBase){
+    history.push({annos:JSON.stringify(annos),base:withBase?bctx.getImageData(0,0,base.width,base.height):null});
+    if(history.length>25)history.shift();
+    $('undo').disabled=false;
+  }
+  $('undo').onclick=()=>{
+    commitText();
+    const h=history.pop();if(!h)return;
+    annos=JSON.parse(h.annos);if(h.base)bctx.putImageData(h.base,0,0);
+    $('undo').disabled=!history.length;render();
+  };
 
-    // 테이블 갱신
-    document.getElementById('targetDim').textContent = `${canvas.width}px x ${canvas.height}px`;
-    document.getElementById('targetSize').textContent = `${(blob.size / 1024).toFixed(2)} KB`;
-    document.getElementById('appliedQuality').textContent = `${Math.round(quality * 100)}%`;
+  /* text editor */
+  let ed=null;
+  function startText(x,y,a){
+    commitText();
+    const s=scale();
+    const size=a?a.size:+$('tsize').value,color=a?a.color:$('color2').value;
+    const inp=document.createElement('input');
+    inp.className='ti';inp.type='text';inp.value=a?a.text:'';
+    inp.style.cssText='left:'+(x*s)+'px;top:'+(y*s)+'px;font-size:'+(size*s)+'px;color:'+color;
+    inp.setAttribute('aria-label','텍스트 입력');
+    stage.appendChild(inp);
+    ed={inp,a,x,y,size,color};editing=a||null;render();
+    setTimeout(()=>inp.focus(),0);
+    inp.onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();commitText()}if(e.key==='Escape'){inp.value=a?a.text:'';commitText()}};
+    inp.onblur=()=>commitText();
+  }
+  function commitText(){
+    if(!ed)return;
+    const {inp,a,x,y,size,color}=ed;ed=null;
+    const v=inp.value.trim();
+    inp.onblur=null;inp.remove();editing=null;
+    if(a){
+      if(!v){snap();annos.splice(annos.indexOf(a),1)}
+      else if(v!==a.text){snap();a.text=v}
+    }else if(v){snap();annos.push({type:'text',x,y,text:v,size,color})}
+    render();
+  }
 
-    // 컴포넌트들 노출
-    infoTable.style.display = "table";
-    downloadBtn.style.display = "block";
-    previewImg.src = blobUrl;
-    previewContainer.style.display = "block";
+  cv.addEventListener('pointerdown',e=>{
+    if(!loaded)return;
+    const p=pos(e);
+    if(tool==='text'){
+      const a=hit(p,'text');
+      if(a){e.preventDefault();cv.setPointerCapture(e.pointerId);drag={move:a,dx:p.x-a.x,dy:p.y-a.y,moved:false}}
+      else{e.preventDefault();startText(p.x,p.y,null)}
+      return;
+    }
+    cv.setPointerCapture(e.pointerId);
+    if(tool==='rect'){commitText();drag={start:p,rect:{type:'rect',x:p.x,y:p.y,w:0,h:0,color:$('color1').value}}}
+    else if(emode==='anno'){
+      drag={del:true,snapped:false};delAt(p);
+    }else{
+      snap(true);drag={last:p};dot(p);render();
+    }
+  });
+  function delAt(p){
+    const a=hit(p);
+    if(a){if(!drag.snapped){snap();drag.snapped=true}annos.splice(annos.indexOf(a),1);render()}
+  }
+  function dot(p){
+    const s=+$('esize').value;bctx.save();bctx.globalCompositeOperation='destination-out';
+    bctx.beginPath();bctx.arc(p.x,p.y,s/2,0,Math.PI*2);bctx.fill();bctx.restore();
+  }
+  cv.addEventListener('pointermove',e=>{
+    if(!drag)return;const p=pos(e);
+    if(drag.move){
+      if(!drag.moved){snap();drag.moved=true}
+      drag.move.x=p.x-drag.dx;drag.move.y=p.y-drag.dy;render();
+    }else if(drag.rect){
+      const s=drag.start;
+      Object.assign(drag.rect,{x:Math.min(s.x,p.x),y:Math.min(s.y,p.y),w:Math.abs(p.x-s.x),h:Math.abs(p.y-s.y)});render();
+    }else if(drag.del){delAt(p)}
+    else if(drag.last){
+      bctx.save();bctx.globalCompositeOperation='destination-out';bctx.lineWidth=+$('esize').value;bctx.lineCap='round';
+      bctx.beginPath();bctx.moveTo(drag.last.x,drag.last.y);bctx.lineTo(p.x,p.y);bctx.stroke();bctx.restore();
+      drag.last=p;render();
+    }
+  });
+  function end(){
+    if(!drag)return;const d=drag;drag=null;
+    if(d.move&&!d.moved)startText(d.move.x,d.move.y,d.move);
+    if(d.rect&&d.rect.w>3&&d.rect.h>3){snap();annos.push(d.rect)}
+    render();
+  }
+  cv.addEventListener('pointerup',end);cv.addEventListener('pointercancel',end);
 
-    // 다운로드 버튼 링크 연결
-    downloadBtn.onclick = function() {
-        const a = document.createElement('a');
-        a.href = blobUrl;
-        a.download = `optimized_1280_${Date.now()}.jpg`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-    };
-}
+  document.addEventListener('keydown',e=>{
+    if((e.ctrlKey||e.metaKey)&&e.key==='z'&&!ed){e.preventDefault();$('undo').click()}
+  });
+  $('save').onclick=()=>{
+    commitText();
+    cv.toBlob(b=>{const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='edited.png';document.body.appendChild(a);a.click();a.remove()},'image/png');
+  };
+  setTool('rect');
+})();
 </script>
-
 </body>
 </html>
