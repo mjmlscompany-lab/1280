@@ -41,11 +41,37 @@ canvas{display:block;max-width:100%;width:auto;height:auto;touch-action:none}
 .page{max-width:100%}
 .ph{display:flex;gap:6px;align-items:center;justify-content:space-between;margin-bottom:6px;font-size:13px;color:var(--mute)}
 .ph button{padding:4px 10px;font-size:12px}
-.ti{position:absolute;margin:0;padding:0;border:1px dashed var(--accent);background:rgba(255,255,255,.6);outline:none;font-weight:700;line-height:1.2;min-width:60px;font-family:"Pretendard","Noto Sans KR","Malgun Gothic",sans-serif}
+.ti{position:absolute;z-index:10;margin:0;padding:0;border:0!important;border-radius:0;background:transparent!important;box-shadow:none!important;outline:none!important;color:transparent!important;font-weight:700;line-height:1.2;min-width:1px;font-family:"Pretendard","Noto Sans KR","Malgun Gothic",sans-serif;appearance:none}
+.ti:focus,.ti:focus-visible{border:0!important;outline:none!important;box-shadow:none!important}
+.ti::selection{background:rgba(255,59,48,.2);color:transparent}
+.rect-actions{position:absolute;z-index:20;display:flex;gap:5px;line-height:normal;transform:translateY(6px);filter:drop-shadow(0 2px 6px rgba(0,0,0,.2))}
+.rect-actions button{width:35px;height:35px;padding:0;border-radius:9px;font-size:19px;font-weight:700;background:#fff;color:#222}
+.rect-actions .confirm{background:#16a34a;border-color:#16a34a;color:white}
 .seg{display:flex}
 .seg button{border-radius:0}
 .seg button:first-child{border-radius:8px 0 0 8px}
 .seg button:last-child{border-radius:0 8px 8px 0;border-left:0}
+
+/* 모바일 전용 하단 도구 모음 */
+@media(max-width:700px){
+  body{height:100dvh;overflow:hidden}
+  #app{height:100dvh;min-height:0}
+  #app main{order:1;min-height:0;padding:12px 8px 24px;overscroll-behavior:contain;touch-action:pan-y}
+  #app .bar.sub{order:2;flex:0 0 auto;padding:8px 12px;min-height:48px;max-height:104px;overflow-y:auto;font-size:12px}
+  #app .bar.sub .grp{gap:7px}
+  #app .bar.sub .grp span{font-size:11px;line-height:1.35}
+  #app .bar[role=toolbar]{order:3;flex:0 0 auto;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;padding:9px 10px calc(10px + env(safe-area-inset-bottom,0px));border-bottom:0;border-top:1px solid var(--line);box-shadow:0 -3px 15px rgba(0,0,0,.07)}
+  #app .bar[role=toolbar]>button{min-height:46px;padding:8px 3px;font-size:13px;touch-action:manipulation}
+  #app .bar[role=toolbar] .sp{grid-column:1/-1;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));margin:0;gap:7px}
+  #app .bar[role=toolbar] .sp>*{display:flex;align-items:center;justify-content:center;min-height:39px;padding:6px 2px;font-size:12px;text-align:center}
+  .rect-actions{transform:none;gap:8px}
+  .rect-actions button{width:48px;height:48px;font-size:23px;touch-action:manipulation}
+  .ph{font-size:12px}
+  .ph button{min-height:34px}
+  .ti{font-size:max(16px,var(--mobile-input-size,16px))!important}
+}
+.text-selection{position:absolute;pointer-events:none;border:2px dashed #1683ff;background:rgba(22,131,255,.10);border-radius:4px;z-index:5;box-shadow:0 0 0 2px rgba(255,255,255,.8);display:none}
+.text-selection::after{content:"✥ 이동";position:absolute;left:0;top:-28px;background:#1683ff;color:white;border-radius:5px;padding:5px 9px;font:600 12px sans-serif;white-space:nowrap}
 </style>
 </head>
 <body>
@@ -61,7 +87,7 @@ canvas{display:block;max-width:100%;width:auto;height:auto;touch-action:none}
 
 <section id="app" hidden>
   <div class="bar" role="toolbar" aria-label="도구">
-    <button id="t-rect" class="on">영역 표시</button>
+    <button id="t-rect" class="on" title="드래그로 영역 선택" aria-label="영역 선택">▢ 선택</button>
     <button id="t-text">텍스트</button>
     <button id="t-erase">지우기</button>
     <div class="sp">
@@ -73,12 +99,12 @@ canvas{display:block;max-width:100%;width:auto;height:auto;touch-action:none}
   <div class="bar sub">
     <div class="grp show" id="g-rect">
       <label>색상 <input id="color1" type="color" value="#ff3b30"></label>
-      <span>이미지 위를 드래그해 영역을 표시합니다. 아래로 스크롤하면 다음 이미지가 나옵니다.</span>
+      <span>영역을 드래그한 후 ✓를 눌러 확정하세요.</span>
     </div>
     <div class="grp" id="g-text">
       <label>색상 <input id="color2" type="color" value="#ff3b30"></label>
       <label>크기 <input id="tsize" type="range" min="12" max="400" value="48"></label>
-      <span>클릭해서 입력하고, 글자를 끌어서 옮깁니다. 글자를 누르면 수정됩니다.</span>
+      <span>빈 곳을 누르면 말풍선 입력 · 드래그해서 이동 · 짧게 누르면 수정</span>
     </div>
     <div class="grp" id="g-erase">
       <div class="seg" role="group" aria-label="지우기 방식">
@@ -96,12 +122,12 @@ canvas{display:block;max-width:100%;width:auto;height:auto;touch-action:none}
 (function(){
   const $=id=>document.getElementById(id);
   const FONT='"Pretendard","Noto Sans KR","Malgun Gothic",sans-serif';
-  let tool='rect',emode='anno',pages=[],history=[],drag=null,ed=null;
+  let tool='rect',emode='anno',pages=[],history=[],drag=null,ed=null,pendingRect=null;
 
   function setTool(t){
-    tool=t;commitText();
+    tool=t;commitText();if(t!=='rect')cancelPending();
     ['rect','text','erase'].forEach(k=>{$('t-'+k).classList.toggle('on',k===t);$('g-'+k).classList.toggle('show',k===t)});
-    pages.forEach(p=>p.cv.style.cursor=t==='text'?'text':'crosshair');
+    pages.forEach(p=>{p.cv.style.cursor=t==='text'?'text':'crosshair';if(p.selection)p.selection.style.display='none'});
   }
   ['rect','text','erase'].forEach(k=>$('t-'+k).onclick=()=>setTool(k));
   function setMode(m){
@@ -133,46 +159,6 @@ canvas{display:block;max-width:100%;width:auto;height:auto;touch-action:none}
     let done=false;
     function flush(){if(done||n<fs.filter(f=>f.type.startsWith('image/')&&f.size<=100*1024*1024).length)return;done=true;imgs.forEach(im=>{if(im){addPage(im);URL.revokeObjectURL(im.src)}})}
   }
-// URL에 전달된 이미지 주소를 편집기에 자동으로 불러오기
-function loadFromUrl(url) {
-  if (!url) return;
-
-  const img = new Image();
-  img.crossOrigin = 'anonymous';
-
-  img.onload = () => {
-    base.width = cv.width = img.naturalWidth;
-    base.height = cv.height = img.naturalHeight;
-
-    bctx.clearRect(0, 0, base.width, base.height);
-    bctx.drawImage(img, 0, 0);
-
-    annos = [];
-    history = [];
-    loaded = true;
-
-    $('undo').disabled = true;
-    $('landing').hidden = true;
-    $('app').hidden = false;
-
-    render();
-  };
-
-  img.onerror = () => {
-    alert('이미지를 편집기에 불러오지 못했습니다.');
-  };
-
-  img.src = url;
-}
-
-// 페이지 주소에서 이미지 주소 읽기
-const params = new URLSearchParams(window.location.search);
-const imageUrls = params.getAll('image');
-
-// 우선 첫 번째 이미지를 편집기에 자동으로 불러오기
-if (imageUrls.length > 0) {
-  loadFromUrl(imageUrls[0]);
-}
   const drop=$('drop');
   drop.ondragover=e=>{e.preventDefault();drop.classList.add('hot')};
   drop.ondragleave=()=>drop.classList.remove('hot');
@@ -194,13 +180,14 @@ if (imageUrls.length > 0) {
     const sv=document.createElement('button');sv.textContent='이 이미지 저장';
     const rm=document.createElement('button');rm.textContent='삭제';
     btns.append(sv,' ',rm);head.append(title,btns);
-    stage.appendChild(cv);wrap.append(head,stage);$('pages').appendChild(wrap);
+    const selection=document.createElement('div');selection.className='text-selection';p.selection=selection;
+    stage.append(cv,selection);wrap.append(head,stage);$('pages').appendChild(wrap);
     p.title=title;pages.push(p);renumber();
     cv.style.cursor=tool==='text'?'text':'crosshair';
     sv.onclick=()=>{commitText();try{cv.toBlob(b=>dl(b,'edited-'+(pages.indexOf(p)+1)+'.png'),'image/png')}catch(err){taintMsg()}};
     rm.onclick=()=>{
       if(!confirm('이 이미지를 삭제할까요?'))return;
-      commitText();pages.splice(pages.indexOf(p),1);history=history.filter(h=>h.p!==p);
+      commitText();if(pendingRect&&pendingRect.p===p)cancelPending();pages.splice(pages.indexOf(p),1);history=history.filter(h=>h.p!==p);
       wrap.remove();renumber();$('undo').disabled=!history.length;
       if(!pages.length){$('app').hidden=true;$('landing').hidden=false}
     };
@@ -215,16 +202,62 @@ if (imageUrls.length > 0) {
     c.save();c.fillStyle=a.color+'33';c.strokeStyle=a.color;c.lineWidth=lw;
     c.fillRect(a.x,a.y,a.w,a.h);c.strokeRect(a.x,a.y,a.w,a.h);c.restore();
   }
-  function drawText(c,a){c.save();c.font='700 '+a.size+'px '+FONT;c.fillStyle=a.color;c.textBaseline='top';c.fillText(a.text,a.x,a.y);c.restore()}
+  // 검수용 말풍선: 글자는 어두운 색, 배경은 흰색, 꼬리는 왼쪽에 표시
+  function textBubbleBox(c,a){
+    c.save();c.font='700 '+a.size+'px '+FONT;
+    const width=c.measureText(a.text||' ').width;
+    c.restore();
+    const pad=Math.max(6,a.size*.16);
+    return {x:a.x,y:a.y,w:width+pad*2,h:a.size*1.12+pad*2,pad};
+  }
+  function drawText(c,a){
+    const b=textBubbleBox(c,a);
+    const r=Math.min(Math.max(6,a.size*.15),b.h/3,b.w/4);
+    const tip=Math.max(8,a.size*.25);
+    const y1=b.y+b.h*.38,ym=b.y+b.h*.50,y2=b.y+b.h*.65;
+    c.save();
+    c.shadowColor='rgba(0,0,0,.16)';
+    c.shadowBlur=Math.max(5,a.size*.16);
+    c.shadowOffsetY=2;
+    c.fillStyle='rgba(255,255,255,0.75)'; // 말풍선 배경 불투명도 75%
+    c.strokeStyle=a.color||'#ff3b30';
+    c.lineWidth=Math.max(2,a.size*.065);
+    // 꼬리와 몸체를 하나의 닫힌 경로로 그려 흰색 이음새가 남지 않게 처리
+    c.beginPath();
+    c.moveTo(b.x+r,b.y);
+    c.lineTo(b.x+b.w-r,b.y);
+    c.quadraticCurveTo(b.x+b.w,b.y,b.x+b.w,b.y+r);
+    c.lineTo(b.x+b.w,b.y+b.h-r);
+    c.quadraticCurveTo(b.x+b.w,b.y+b.h,b.x+b.w-r,b.y+b.h);
+    c.lineTo(b.x+r,b.y+b.h);
+    c.quadraticCurveTo(b.x,b.y+b.h,b.x,b.y+b.h-r);
+    c.lineTo(b.x,y2);
+    c.lineTo(b.x-tip,ym);
+    c.lineTo(b.x,y1);
+    c.lineTo(b.x,b.y+r);
+    c.quadraticCurveTo(b.x,b.y,b.x+r,b.y);
+    c.closePath();
+    c.fill();
+    c.shadowColor='transparent';
+    c.stroke();
+    c.font='700 '+a.size+'px '+FONT;
+    c.textBaseline='middle';
+    c.fillStyle='#202124';
+    c.fillText(a.text,b.x+b.pad,b.y+b.h/2);
+    c.restore();
+  }
   function render(p){
     const c=p.ctx;c.clearRect(0,0,p.cv.width,p.cv.height);c.drawImage(p.base,0,0);
     p.annos.forEach(a=>{if(a===p.editing)return;a.type==='rect'?drawRect(c,a,p.cv.width):drawText(c,a)});
+    if(pendingRect&&pendingRect.p===p)drawRect(c,pendingRect.rect,p.cv.width);
+    if(ed&&ed.p===p&&ed.inp.value.trim()){
+      drawText(c,{type:'text',text:ed.inp.value,x:ed.x,y:ed.y,size:ed.size,color:ed.color});
+    }
     if(drag&&drag.p===p&&drag.rect)drawRect(c,drag.rect,p.cv.width);
   }
   function box(p,a){
     if(a.type==='rect')return a;
-    p.ctx.save();p.ctx.font='700 '+a.size+'px '+FONT;const w=p.ctx.measureText(a.text).width;p.ctx.restore();
-    return {x:a.x,y:a.y,w:w,h:a.size*1.2};
+    return textBubbleBox(p.ctx,a);
   }
   function hit(p,pt,type){
     for(let i=p.annos.length-1;i>=0;i--){
@@ -255,13 +288,27 @@ if (imageUrls.length > 0) {
     const size=a?a.size:+$('tsize').value,color=a?a.color:$('color2').value;
     const inp=document.createElement('input');
     inp.className='ti';inp.type='text';inp.value=a?a.text:'';
-    inp.style.cssText='left:'+(x*s)+'px;top:'+(y*s)+'px;font-size:'+(size*s)+'px;color:'+color;
+    const pad=Math.max(6,size*.16);
+    inp.style.cssText='left:'+((x+pad)*s)+'px;top:'+((y+(size*1.12+pad*2)/2-size*.6)*s)+'px;font-size:'+(size*s)+'px;color:transparent;caret-color:#202124;background:transparent;';
+    inp.style.setProperty('--mobile-input-size',Math.max(16,size*s)+'px');;
     inp.setAttribute('aria-label','텍스트 입력');
     p.stage.appendChild(inp);
     ed={p,inp,a,x,y,size,color};p.editing=a||null;render(p);
-    setTimeout(()=>inp.focus(),0);
+    // 터치 입력 직후 포커스: 모바일 키보드 호출 가능성을 높임
+    inp.focus({preventScroll:true});
     inp.onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();commitText()}if(e.key==='Escape'){inp.value=a?a.text:'';commitText()}};
     inp.onblur=()=>commitText();
+    function updateInlineText(){
+      const metrics=p.ctx;
+      metrics.save();
+      metrics.font='700 '+size+'px '+FONT;
+      const textWidth=metrics.measureText(inp.value||' ').width;
+      metrics.restore();
+      inp.style.width=Math.max(20,textWidth*s+18)+'px';
+      render(p);
+    }
+    inp.oninput=updateInlineText;
+    updateInlineText();
   }
   function commitText(){
     if(!ed)return;
@@ -272,21 +319,27 @@ if (imageUrls.length > 0) {
       if(!v){snap(p);p.annos.splice(p.annos.indexOf(a),1)}
       else if(v!==a.text){snap(p);a.text=v}
     }else if(v){snap(p);p.annos.push({type:'text',x,y,text:v,size,color})}
-    render(p);
+    render(p);showTextSelection(p,null);
   }
   function delAt(pt){
     const a=hit(drag.p,pt);
     if(a){if(!drag.snapped){snap(drag.p);drag.snapped=true}drag.p.annos.splice(drag.p.annos.indexOf(a),1);render(drag.p)}
   }
 
+  function showTextSelection(p,a){
+    if(!p.selection)return;
+    if(!a||tool!=='text'){p.selection.style.display='none';return}
+    const b=box(p,a),k=scale(p);
+    p.selection.style.cssText='display:block;left:'+(b.x*k-4)+'px;top:'+(b.y*k-4)+'px;width:'+(b.w*k+8)+'px;height:'+(b.h*k+8)+'px';
+  }
   function bind(p){
     const cv=p.cv;
     cv.addEventListener('pointerdown',e=>{
       const pt=pos(e,p);
       if(tool==='text'){
         const a=hit(p,pt,'text');e.preventDefault();
-        if(a){cv.setPointerCapture(e.pointerId);drag={p,move:a,dx:pt.x-a.x,dy:pt.y-a.y,moved:false}}
-        else startText(p,pt.x,pt.y,null);
+        if(a){cv.setPointerCapture(e.pointerId);drag={p,move:a,dx:pt.x-a.x,dy:pt.y-a.y,moved:false,startPt:pt};showTextSelection(p,a);cv.style.cursor='grabbing'}
+        else {showTextSelection(p,null);startText(p,pt.x,pt.y,null);}
         return;
       }
       cv.setPointerCapture(e.pointerId);
@@ -295,10 +348,20 @@ if (imageUrls.length > 0) {
       else{snap(p,true);drag={p,last:pt};erase(p,pt,pt)}
     });
     cv.addEventListener('pointermove',e=>{
-      if(!drag||drag.p!==p)return;const pt=pos(e,p);
+      if(!drag||drag.p!==p){
+        if(tool==='text'&&!ed){const a=hit(p,pos(e,p),'text');showTextSelection(p,a);cv.style.cursor=a?'grab':'text'}
+        return;
+      }
+      const pt=pos(e,p);
       if(drag.move){
-        if(!drag.moved){snap(p);drag.moved=true}
-        drag.move.x=pt.x-drag.dx;drag.move.y=pt.y-drag.dy;render(p);
+        // 작은 손떨림은 클릭으로 처리: 실제 이동할 때만 되돌리기 기록
+        if(!drag.moved){
+          if(Math.hypot(pt.x-drag.startPt.x,pt.y-drag.startPt.y)<6/Math.max(scale(p),0.05))return;
+          snap(p);drag.moved=true;
+        }
+        drag.move.x=Math.max(0,Math.min(p.cv.width,pt.x-drag.dx));
+        drag.move.y=Math.max(0,Math.min(p.cv.height,pt.y-drag.dy));
+        render(p);showTextSelection(p,drag.move);
       }else if(drag.rect){
         const s=drag.start;
         Object.assign(drag.rect,{x:Math.min(s.x,pt.x),y:Math.min(s.y,pt.y),w:Math.abs(pt.x-s.x),h:Math.abs(pt.y-s.y)});render(p);
@@ -307,12 +370,46 @@ if (imageUrls.length > 0) {
     });
     function end(){
       if(!drag||drag.p!==p)return;const d=drag;drag=null;
-      if(d.move&&!d.moved)startText(p,d.move.x,d.move.y,d.move);
-      if(d.rect&&d.rect.w>3&&d.rect.h>3){snap(p);p.annos.push(d.rect)}
+      if(d.move&&!d.moved){showTextSelection(p,null);startText(p,d.move.x,d.move.y,d.move)}
+      else if(d.move){showTextSelection(p,d.move)}
+      if(d.move)cv.style.cursor='grab';
+      if(d.rect&&d.rect.w>3&&d.rect.h>3){cancelPending();pendingRect={p,rect:d.rect};showRectActions(p,d.rect)}
       render(p);
     }
-    cv.addEventListener('pointerup',end);cv.addEventListener('pointercancel',end);
+    cv.addEventListener('pointerleave',()=>{if(!drag)showTextSelection(p,null)});
+    cv.addEventListener('pointerup',end);
+    cv.addEventListener('pointercancel',()=>{if(drag&&drag.p===p){drag=null;render(p)}});
   }
+  // 드래그한 사각형 끝에 마우스형 확정/취소 메뉴 표시
+  let rectActions=null;
+  function removeRectActions(){if(rectActions){rectActions.remove();rectActions=null}}
+  function cancelPending(){
+    if(!pendingRect)return;
+    const p=pendingRect.p;pendingRect=null;removeRectActions();render(p);
+  }
+  function confirmPending(){
+    if(!pendingRect)return;
+    const {p,rect}=pendingRect;
+    snap(p);p.annos.push({...rect});pendingRect=null;
+    removeRectActions();render(p);
+  }
+  function showRectActions(p,rect){
+    removeRectActions();
+    const menu=document.createElement('div');menu.className='rect-actions';
+    const ok=document.createElement('button');ok.type='button';ok.className='confirm';ok.textContent='✓';ok.title='영역 고정';
+    const no=document.createElement('button');no.type='button';no.textContent='✕';no.title='취소';
+    menu.append(ok,no);p.stage.appendChild(menu);rectActions=menu;
+    const ratio=scale(p);
+    const isMobile=window.matchMedia('(max-width:700px)').matches;
+    const menuWidth=isMobile?104:78,menuHeight=isMobile?52:45;
+    const left=Math.max(0,Math.min(rect.x+rect.w, p.cv.width)*ratio-menuWidth/2);
+    const top=Math.max(0,Math.min(rect.y+rect.h,p.cv.height)*ratio);
+    menu.style.left=Math.min(left,Math.max(0,p.cv.getBoundingClientRect().width-menuWidth))+'px';
+    menu.style.top=Math.min(top,Math.max(0,p.cv.getBoundingClientRect().height-menuHeight))+'px';
+    ok.onclick=e=>{e.stopPropagation();confirmPending()};
+    no.onclick=e=>{e.stopPropagation();cancelPending()};
+  }
+
   function erase(p,a,b){
     const c=p.bctx;c.save();c.globalCompositeOperation='destination-out';c.lineWidth=+$('esize').value;c.lineCap='round';
     c.beginPath();c.moveTo(a.x,a.y);c.lineTo(b.x,b.y);c.stroke();c.restore();render(p);
