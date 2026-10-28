@@ -150,6 +150,28 @@ canvas{display:block;max-width:100%;width:auto;height:auto;touch-action:none}
   let preparedReplacement=null;
   let selected=null;
   let tool='rect',emode='anno',pages=[],history=[],drag=null,ed=null,pendingRect=null;
+  // 브라우저 뒤로가기 보호: 변경사항이 있을 때만 경고합니다.
+  let hasUnsavedChanges=false;
+  let exitApproved=false;
+  const exitMessage='저장하지 않고 뒤로 가시겠습니까?\n작성한 수정 내용이 사라질 수 있습니다.';
+  // 모바일 뒤로가기 버튼/제스처를 감지할 수 있도록 현재 항목을 한 단계 추가합니다.
+  window.history.pushState({reviewEditorGuard:true},'',location.href);
+  window.addEventListener('popstate',()=>{
+    if(exitApproved)return;
+    if(hasUnsavedChanges && !window.confirm(exitMessage)){
+      window.history.pushState({reviewEditorGuard:true},'',location.href);
+      return;
+    }
+    exitApproved=true;
+    window.history.back();
+  });
+  // 새로고침·탭 닫기 등은 브라우저 기본 확인창이 표시됩니다.
+  window.addEventListener('beforeunload',e=>{
+    if(!hasUnsavedChanges || exitApproved)return;
+    e.preventDefault();
+    e.returnValue='';
+  });
+
 
   const photoCursor = 'url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2236%22%20height%3D%2236%22%20viewBox%3D%220%200%2036%2036%22%3E%3Cpath%20d%3D%22M3%203h22v22H3z%22%20fill%3D%22white%22%20stroke%3D%22%23111827%22%20stroke-width%3D%222%22%2F%3E%3Cpath%20d%3D%22M6%2020l6-7%205%205%203-4%203%206%22%20fill%3D%22none%22%20stroke%3D%22%231683ff%22%20stroke-width%3D%222%22%20stroke-linejoin%3D%22round%22%2F%3E%3Ccircle%20cx%3D%2219%22%20cy%3D%2210%22%20r%3D%222.5%22%20fill%3D%22%231683ff%22%2F%3E%3Ccircle%20cx%3D%2227%22%20cy%3D%2227%22%20r%3D%228%22%20fill%3D%22%2316a34a%22%20stroke%3D%22white%22%20stroke-width%3D%221.5%22%2F%3E%3Cpath%20d%3D%22M23%2027h8M27%2023v8%22%20stroke%3D%22white%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%2F%3E%3C%2Fsvg%3E") 3 3, copy';
   function setTool(t){
@@ -231,7 +253,7 @@ canvas{display:block;max-width:100%;width:auto;height:auto;touch-action:none}
     rm.onclick=()=>{
       if(!confirm('이 이미지를 삭제할까요?'))return;
       commitText();if(selected?.p===p)selected=null;if(pendingRect&&pendingRect.p===p)cancelPending();pages.splice(pages.indexOf(p),1);history=history.filter(h=>h.p!==p);
-      wrap.remove();renumber();$('undo').disabled=!history.length;
+      hasUnsavedChanges=true;wrap.remove();renumber();$('undo').disabled=!history.length;
       if(!pages.length){$('app').hidden=true;$('landing').hidden=false}
     };
     bind(p);render(p);
@@ -382,6 +404,7 @@ canvas{display:block;max-width:100%;width:auto;height:auto;touch-action:none}
   function scale(p){return p.cv.getBoundingClientRect().width/p.cv.width}
 
   function snap(p,withBase){
+    hasUnsavedChanges=true;
     history.push({p,annos:JSON.stringify(p.annos),base:withBase?p.bctx.getImageData(0,0,p.base.width,p.base.height):null});
     if(history.length>25)history.shift();
     $('undo').disabled=false;
@@ -686,7 +709,7 @@ canvas{display:block;max-width:100%;width:auto;height:auto;touch-action:none}
     if(H>30000||W*H>2.5e8){alert('이미지가 너무 커서 한 장으로 합칠 수 없습니다. 각 이미지의 "이 이미지 저장"을 사용해 주세요.');return}
     const o=document.createElement('canvas');o.width=W;o.height=H;const c=o.getContext('2d');
     let y=0;pages.forEach((p,i)=>{c.drawImage(p.cv,0,y,W,hs[i]);y+=hs[i]});
-    o.toBlob(b=>dl(b,'edited-all.png'),'image/png');
+    o.toBlob(b=>{if(!b){alert('저장에 실패했습니다. 다시 시도해 주세요.');return}dl(b,'edited-all.png');hasUnsavedChanges=false},'image/png');
   }
   function taintMsg(){alert('이 이미지는 원본 서버가 외부 사용(CORS)을 허용하지 않아 저장할 수 없습니다. 이미지를 같은 사이트에 두거나 서버의 CORS를 허용해 주세요.')}
   setTool(window.matchMedia('(max-width:700px) and (pointer:coarse)').matches?'view':'rect');
@@ -701,4 +724,5 @@ canvas{display:block;max-width:100%;width:auto;height:auto;touch-action:none}
 })();
 </script>
 </body>
+</html>
 </html>
