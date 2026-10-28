@@ -11,7 +11,7 @@ box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:en
 :root[data-theme="dark"]{--bg:#121715;--panel:#1b221f;--ink:#e7eeea;--mute:#98a59e;--line:#2f3a35;--accent:#2fd45e;--accent-ink:#06210f;--checker:#232b27}
 html{scroll-padding-top:env(safe-area-inset-top,0px);height:100%}
 *{box-sizing:border-box}
-body{margin:0;min-height:100%;background:var(--bg);color:var(--ink);font-family:"Pretendard","Noto Sans KR",-apple-system,"Malgun Gothic",sans-serif;display:flex;flex-direction:column}
+body{margin:0;height:100dvh;min-height:100%;overflow:hidden;background:var(--bg);color:var(--ink);font-family:"Pretendard","Noto Sans KR",-apple-system,"Malgun Gothic",sans-serif;display:flex;flex-direction:column}
 [hidden]{display:none!important}
 button,label.btn{font:inherit;font-size:14px;padding:8px 14px;border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:8px;cursor:pointer}
 button:hover,label.btn:hover{border-color:var(--accent)}
@@ -26,15 +26,15 @@ button:disabled{opacity:.4;cursor:default}
 .drop.hot{border-color:var(--accent)}
 .drop label{font-size:16px;padding:12px 28px}
 .drop small{display:block;margin-top:16px;color:var(--mute)}
-#app{flex:1;display:flex;flex-direction:column;min-height:0}
-.bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:10px 14px;background:var(--panel);border-bottom:1px solid var(--line)}
+#app{flex:1;display:flex;flex-direction:column;min-height:0;height:100%;overflow:hidden}
+.bar{flex-shrink:0;display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:10px 14px;background:var(--panel);border-bottom:1px solid var(--line)}
 .bar.sub{font-size:13px;color:var(--mute);min-height:48px}
 .sp{margin-left:auto;display:flex;gap:6px;flex-wrap:wrap}
 .grp{display:none;gap:12px;align-items:center;flex-wrap:wrap}
 .grp.show{display:flex}
 input[type=range]{width:120px;accent-color:var(--accent)}
 input[type=color]{width:36px;height:30px;padding:0;border:1px solid var(--line);border-radius:6px;background:none;cursor:pointer}
-main{flex:1;display:flex;justify-content:center;align-items:flex-start;padding:16px;overflow:auto}
+main{flex:1;min-height:0;display:flex;justify-content:center;align-items:flex-start;padding:16px;overflow-x:auto;overflow-y:auto;overscroll-behavior:contain}
 .stage{position:relative;line-height:0;max-width:100%;background:repeating-conic-gradient(var(--checker) 0 25%,transparent 0 50%) 0 0/16px 16px;box-shadow:0 2px 12px rgba(0,0,0,.2)}
 canvas{display:block;max-width:100%;width:auto;height:auto;touch-action:none}
 #pages{display:flex;flex-direction:column;align-items:center;gap:20px;width:100%}
@@ -392,11 +392,16 @@ canvas{display:block;max-width:100%;width:auto;height:auto;touch-action:none}
     const {p,rect}=pendingRect;
     snap(p);p.annos.push({...rect});pendingRect=null;
     removeRectActions();render(p);
+    // 체크 버튼을 누르면 곧바로 해당 영역에 대한 말풍선 입력 시작
+    setTool('text');
+    const bubbleX=Math.max(12,Math.min(p.cv.width-180,rect.x+rect.w+12));
+    const bubbleY=Math.max(8,Math.min(p.cv.height-80,rect.y));
+    startText(p,bubbleX,bubbleY,null);
   }
   function showRectActions(p,rect){
     removeRectActions();
     const menu=document.createElement('div');menu.className='rect-actions';
-    const ok=document.createElement('button');ok.type='button';ok.className='confirm';ok.textContent='✓';ok.title='영역 고정';
+    const ok=document.createElement('button');ok.type='button';ok.className='confirm';ok.textContent='✓';ok.title='영역 확정 후 말풍선 입력';
     const no=document.createElement('button');no.type='button';no.textContent='✕';no.title='취소';
     menu.append(ok,no);p.stage.appendChild(menu);rectActions=menu;
     const ratio=scale(p);
