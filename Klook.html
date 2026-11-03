@@ -56,10 +56,18 @@ canvas{display:block;max-width:100%;width:auto;height:auto;touch-action:none}
 .seg button:last-child{border-radius:0 8px 8px 0;border-left:0}
 
 #t-view{display:none}
+/* 모바일 텍스트 입력 중에는 도구 대신 간결한 입력창을 노출 */
+#mobileTextDock{display:none}
 /* 모바일 전용 하단 도구 모음 */
 @media(max-width:700px){
-  body{height:100dvh;overflow:hidden}
-  #app{height:100dvh;min-height:0}
+  body{height:var(--mobile-viewport-height,100dvh);overflow:hidden}
+  #app{height:var(--mobile-viewport-height,100dvh);min-height:0}
+  #app.mobile-typing .bar[role=toolbar],#app.mobile-typing .bar.sub{display:none!important}
+  #app.mobile-typing #mobileTextDock{display:flex;order:2;flex:0 0 auto;gap:8px;align-items:center;padding:8px 10px calc(8px + env(safe-area-inset-bottom,0px));background:var(--panel);border-top:1px solid var(--line)}
+  #mobileTextDock textarea{display:block;flex:1;min-width:0;min-height:44px;max-height:100px;resize:none;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--panel);color:var(--ink);font:500 16px/1.4 inherit;line-height:1.4;outline-color:var(--accent)}
+  #mobileTextDock button{flex:0 0 auto;min-height:44px;padding:8px 13px}
+  #mobileTextDock .mobile-cancel{padding:8px 10px}
+  #app.mobile-typing main{padding-bottom:8px}
   #app main{order:1;min-height:0;padding:12px 8px 24px;overscroll-behavior:contain;touch-action:pan-y}
   #app .bar.sub{order:2;flex:0 0 auto;padding:8px 12px;min-height:48px;max-height:104px;overflow-y:auto;font-size:12px}
   #app .bar.sub .grp{gap:7px}
@@ -138,6 +146,11 @@ canvas{display:block;max-width:100%;width:auto;height:auto;touch-action:none}
       <span id="ehint">지울 영역 표시나 텍스트를 클릭하거나 드래그합니다.</span>
     </div>
   </div>
+  <div id="mobileTextDock" aria-label="모바일 텍스트 입력">
+    <button type="button" class="mobile-cancel" id="mobileTextCancel">취소</button>
+    <textarea id="mobileTextField" rows="1" placeholder="수정 요청을 입력하세요 (엔터: 줄바꿈)" aria-label="말풍선 텍스트"></textarea>
+    <button type="button" class="primary" id="mobileTextDone">완료</button>
+  </div>
   <input id="replacementFile" type="file" accept="image/*" hidden>
   <main><div id="pages"></div></main>
 </section>
@@ -153,6 +166,27 @@ canvas{display:block;max-width:100%;width:auto;height:auto;touch-action:none}
   let tool='rect',emode='anno',pages=[],history=[],drag=null,ed=null,pendingRect=null;
   // 브라우저 뒤로가기 보호: 변경사항이 있을 때만 경고합니다.
   let hasUnsavedChanges=false;
+  const isMobileEditor=()=>window.matchMedia('(max-width:700px)').matches;
+  // Android / iOS 키보드가 차지한 공간을 제외한 실제 보이는 높이로 편집 영역 조정
+  function syncMobileViewport(){
+    if(!isMobileEditor()){document.documentElement.style.removeProperty('--mobile-viewport-height');return}
+    const vv=window.visualViewport;
+    document.documentElement.style.setProperty('--mobile-viewport-height',Math.round(vv?vv.height:window.innerHeight)+'px');
+  }
+  if(window.visualViewport){window.visualViewport.addEventListener('resize',syncMobileViewport);window.visualViewport.addEventListener('scroll',syncMobileViewport)}
+  window.addEventListener('resize',syncMobileViewport);
+  syncMobileViewport();
+  function keepEditedBubbleVisible(){
+    if(!ed||!isMobileEditor())return;
+    const {p,x,y}=ed,main=$('app').querySelector('main');
+    const stageRect=p.cv.getBoundingClientRect(),mainRect=main.getBoundingClientRect();
+    const targetY=stageRect.top+y*scale(p);
+    const safeBottom=mainRect.bottom-85;
+    if(targetY>safeBottom)main.scrollTop+=targetY-safeBottom;
+    else if(targetY<mainRect.top+24)main.scrollTop-=mainRect.top+24-targetY;
+  }
+  $('mobileTextDone').onclick=()=>commitText();
+  $('mobileTextCancel').onclick=()=>{if(!ed)return;ed.inp.value=ed.a?ed.a.text:'';commitText()};
   let exitApproved=false;
   const exitMessage='저장하지 않고 뒤로 가시겠습니까?\n작성한 수정 내용이 사라질 수 있습니다.';
   // 모바일 뒤로가기 버튼/제스처를 감지할 수 있도록 현재 항목을 한 단계 추가합니다.
@@ -420,39 +454,58 @@ canvas{display:block;max-width:100%;width:auto;height:auto;touch-action:none}
     commitText();
     const s=scale(p);
     const size=a?a.size:24,color=a?a.color:$('color2').value;
-    const inp=document.createElement('textarea');
-    inp.className='ti';inp.value=a?a.text:'';
-    inp.style.resize='none';inp.style.overflow='hidden';inp.style.whiteSpace='pre-wrap';
-    inp.style.fontFamily=FONT;inp.style.fontWeight='700';
-    inp.setAttribute('aria-label','텍스트 입력');
-    p.stage.appendChild(inp);
-    ed={p,inp,a,x,y,size,color};p.editing=a||null;
-    inp.focus({preventScroll:true});
+    const mobile=isMobileEditor();
+    const inp=mobile?$('mobileTextField'):document.createElement('textarea');
+    inp.value=a?a.text:'';
+    if(!mobile){
+      inp.className='ti';
+      inp.style.resize='none';inp.style.overflow='hidden';inp.style.whiteSpace='pre-wrap';
+      inp.style.fontFamily=FONT;inp.style.fontWeight='700';
+      inp.setAttribute('aria-label','텍스트 입력');
+      p.stage.appendChild(inp);
+    }else{
+      $('app').classList.add('mobile-typing');
+      inp.style.height='44px';
+    }
+    ed={p,inp,a,x,y,size,color,mobile};p.editing=a||null;
     inp.onkeydown=e=>{
       if(e.key==='Enter'&&(e.ctrlKey||e.metaKey)){e.preventDefault();commitText()}
       if(e.key==='Escape'){e.preventDefault();inp.value=a?a.text:'';commitText()}
     };
-    inp.onblur=()=>commitText();
+    // 모바일에서 완료 버튼을 누를 때 포커스가 이동해도 입력이 먼저 확정되지 않게 함
+    inp.onblur=mobile?null:()=>commitText();
     function updateInlineText(){
+      if(!ed||ed.inp!==inp)return;
       const b=textBubbleBox(p.ctx,{x,y,size,text:inp.value});
-      inp.style.cssText+='';
-      inp.style.left=((b.x+b.pad)*s)+'px';
-      inp.style.top=((b.y+b.pad)*s)+'px';
-      inp.style.width=Math.max(12,(b.w-b.pad*2)*s)+'px';
-      inp.style.height=Math.max(18,(b.h-b.pad*2)*s)+'px';
-      inp.style.fontSize=(size*s)+'px';
-      inp.style.lineHeight='1.25';
-      inp.style.setProperty('--mobile-input-size',Math.max(16,size*s)+'px');
+      if(mobile){
+        inp.style.height=Math.min(100,Math.max(44,inp.scrollHeight))+'px';
+      }else{
+        inp.style.left=((b.x+b.pad)*s)+'px';
+        inp.style.top=((b.y+b.pad)*s)+'px';
+        inp.style.width=Math.max(12,(b.w-b.pad*2)*s)+'px';
+        inp.style.height=Math.max(18,(b.h-b.pad*2)*s)+'px';
+        inp.style.fontSize=(size*s)+'px';
+        inp.style.lineHeight='1.25';
+        inp.style.setProperty('--mobile-input-size',Math.max(16,size*s)+'px');
+      }
       render(p);
+      if(mobile)requestAnimationFrame(keepEditedBubbleVisible);
     }
     inp.oninput=updateInlineText;
     updateInlineText();
+    inp.focus({preventScroll:true});
+    if(mobile){syncMobileViewport();setTimeout(keepEditedBubbleVisible,180)}
   }
   function commitText(){
     if(!ed)return;
-    const {p,inp,a,x,y,size,color}=ed;ed=null;
+    const {p,inp,a,x,y,size,color,mobile}=ed;ed=null;
     const v=inp.value.trim();
-    inp.onblur=null;inp.remove();p.editing=null;
+    inp.onblur=null;inp.onkeydown=null;inp.oninput=null;
+    if(mobile){
+      inp.blur();inp.value='';$('app').classList.remove('mobile-typing');
+      syncMobileViewport();
+    }else inp.remove();
+    p.editing=null;
     if(a){
       if(!v){snap(p);p.annos.splice(p.annos.indexOf(a),1)}
       else if(v!==a.text){snap(p);a.text=v}
