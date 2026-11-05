@@ -252,6 +252,27 @@ canvas{display:block;max-width:100%;width:auto;height:auto;touch-action:none}
   .review-modal-backdrop .review-entry{border-radius:12px;padding:12px 44px 12px 13px}
   body.review-modal-open{overflow:hidden}
 }
+
+/* 모바일 내역 UI 정돈: 간결한 플로팅 트리거 + 헤더 일체형 모달 */
+@media(max-width:700px){
+  .review-side.collapsed{right:14px;bottom:14px;height:40px;max-height:40px;border:1px solid #e0e5e3;border-radius:999px;box-shadow:0 3px 10px rgba(21,36,31,.10)}
+  .review-side.collapsed .review-side-head{min-height:38px;height:38px;padding:0 14px;gap:8px;font-size:12px;letter-spacing:-.3px}
+  .review-side.collapsed .review-clock-icon{width:15px;height:15px}
+  .review-side.collapsed #reviewSideArrow{font-size:11px}
+  .review-modal-backdrop.is-open{padding:20px 16px calc(20px + env(safe-area-inset-bottom,0px));background:rgba(18,28,31,.42)}
+  .review-modal-backdrop .review-side{height:min(73dvh,620px)!important;max-height:calc(100dvh - 48px - env(safe-area-inset-bottom,0px))!important;max-width:420px;border:1px solid #e4e8e6;border-radius:20px;box-shadow:0 18px 50px rgba(10,25,22,.18)}
+  .review-modal-backdrop .review-side-head{min-height:62px!important;padding:0 56px 0 20px!important;font-size:17px;letter-spacing:-.5px;pointer-events:none;border-bottom:1px solid #edf0ee}
+  .review-modal-backdrop .review-side-head .review-toggle-label{gap:10px}
+  .review-modal-backdrop .review-side-head .review-clock-icon{width:19px;height:19px}
+  .review-modal-backdrop .review-modal-close{top:12px;right:12px;width:36px;height:36px;background:#f5f7f6;border:1px solid #edf0ee;border-radius:50%;font-size:23px;color:#53615b}
+  .review-modal-backdrop .review-side-body{padding:18px 18px 22px}
+  .review-modal-backdrop .review-side-note{line-height:1.5}
+  .review-modal-backdrop .review-entry-row{margin:0 0 9px}
+  .review-modal-backdrop .review-entry{min-height:64px;border:1px solid #e2e7e4;border-radius:12px;padding:11px 45px 11px 14px;font-size:12px;line-height:1.5}
+  .review-modal-backdrop .review-entry.active{border-color:#00aa40;box-shadow:0 0 0 1px rgba(0,170,64,.12)}
+  .review-modal-backdrop .review-trash-btn{right:8px;width:34px;height:34px}
+  .review-modal-backdrop #reviewRefresh{min-height:42px;border-radius:10px}
+}
 </style>
 </head>
 <body>
@@ -1191,7 +1212,7 @@ canvas{display:block;max-width:100%;width:auto;height:auto;touch-action:none}
       if(reviewModalBackdrop.classList.contains('is-open')){closeMobileReview();return}
       side.classList.remove('collapsed');
       reviewModalBackdrop.appendChild(side);
-      reviewModalBackdrop.appendChild(reviewModalClose);
+      side.appendChild(reviewModalClose);
       reviewModalBackdrop.classList.add('is-open');
       document.body.classList.add('review-modal-open');
       $('reviewSideToggle').setAttribute('aria-expanded','true');
