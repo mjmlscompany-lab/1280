@@ -33,7 +33,12 @@ button:disabled{opacity:.4;cursor:default}
 .grp{display:none;gap:12px;align-items:center;flex-wrap:wrap}
 .grp.show{display:flex}
 input[type=range]{width:120px;accent-color:var(--accent)}
-input[type=color]{width:36px;height:30px;padding:0;border:1px solid var(--line);border-radius:6px;background:none;cursor:pointer}
+/* 원형 컬러 피커: 기존 색상 선택 기능 유지 */
+input[type=color]{width:36px;height:36px;box-sizing:border-box;padding:3px;border:1px solid var(--line);border-radius:50%;background:var(--panel);cursor:pointer;vertical-align:middle;overflow:hidden;appearance:none;-webkit-appearance:none}
+input[type=color]::-webkit-color-swatch-wrapper{padding:0;border-radius:50%;overflow:hidden}
+input[type=color]::-webkit-color-swatch{border:1px solid rgba(0,0,0,.55);border-radius:50%}
+input[type=color]::-moz-color-swatch{border:1px solid rgba(0,0,0,.55);border-radius:50%}
+input[type=color]:hover{border-color:var(--accent)}
 main{flex:1;min-height:0;display:flex;justify-content:center;align-items:flex-start;padding:16px;overflow-x:auto;overflow-y:auto;overscroll-behavior:contain}
 .stage{position:relative;line-height:0;max-width:100%;background:repeating-conic-gradient(var(--checker) 0 25%,transparent 0 50%) 0 0/16px 16px;box-shadow:0 2px 12px rgba(0,0,0,.2)}
 canvas{display:block;max-width:100%;width:auto;height:auto;touch-action:none}
