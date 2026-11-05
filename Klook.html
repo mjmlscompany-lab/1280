@@ -112,7 +112,7 @@ canvas{display:block;max-width:100%;width:auto;height:auto;touch-action:none}
 .review-side-body input[type=password]{width:100%;padding:9px;border:1px solid var(--line);border-radius:7px;background:var(--bg);color:var(--ink);margin-bottom:8px}
 .review-entry{display:block;width:100%;text-align:left;margin:6px 0;padding:9px;border:1px solid var(--line);border-radius:8px;background:var(--panel);font-size:12px}
 .review-entry.active{border-color:var(--accent)}
-.review-entry-row{display:flex;align-items:stretch;gap:6px;margin:6px 0}.review-entry-row .review-entry{flex:1;min-width:0;margin:0}.review-trash-btn{flex:0 0 auto;border:1px solid #f3b5b5;border-radius:8px;background:#fff1f2;color:#9f1239;font-size:12px;padding:0 10px;min-height:42px}.review-trash-btn:disabled{opacity:.5}.review-trash-btn.restore{background:#eff6ff;color:#1d4ed8;border-color:#bfdbfe}
+.review-entry-row{position:relative;margin:6px 0}.review-entry-row .review-entry{display:block;width:100%;min-width:0;margin:0;padding-right:40px;min-height:49px}.review-trash-btn{position:absolute;right:7px;top:50%;transform:translateY(-50%);display:flex;align-items:center;justify-content:center;width:28px;height:28px;padding:0;border:0;border-radius:6px;background:transparent;color:#737b86;font-size:20px;line-height:1;cursor:pointer}.review-trash-btn:hover,.review-trash-btn:focus-visible{background:#fff1f2;color:#be123c;outline-offset:2px}.review-trash-btn:disabled{opacity:.5}.review-trash-btn.restore{font-size:19px;color:#2563eb}.review-trash-btn.restore:hover,.review-trash-btn.restore:focus-visible{background:#eff6ff;color:#1d4ed8}@media(hover:none) and (pointer:coarse){.review-trash-btn{width:34px;height:34px;right:4px}.review-entry-row .review-entry{padding-right:43px}}
 .review-preview{display:block;max-width:100%;max-height:180px;object-fit:contain;margin:10px auto;border:1px solid var(--line)}
 .review-side-note.small{font-size:11px}
 .review-side.collapsed{width:44px;flex-basis:44px}
@@ -1028,7 +1028,7 @@ canvas{display:block;max-width:100%;width:auto;height:auto;touch-action:none}
       };
       const row=document.createElement('div');row.className='review-entry-row';row.appendChild(b);
       const del=document.createElement('button');del.type='button';del.className='review-trash-btn'+(trashView?' restore':'');
-      del.textContent=trashView?'↩ 복구':'🗑 삭제';del.setAttribute('aria-label',trashView?'수정 요청 복구':'수정 요청 휴지통 이동');
+      del.textContent=trashView?'↩':'×';del.setAttribute('aria-label',trashView?'수정 요청 복구':'수정 요청 휴지통 이동');del.title=trashView?'복구':'휴지통으로 이동';
       del.onclick=()=>openTrashModal(trashView?'restoreRequest':'trashRequest',item.requestId);
       row.appendChild(del);list.appendChild(row);
     });
