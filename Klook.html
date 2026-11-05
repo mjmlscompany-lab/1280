@@ -197,7 +197,6 @@ canvas{display:block;max-width:100%;width:auto;height:auto;touch-action:none}
       </button>
       <div class="review-side-body">
         <p class="review-side-note small">현재 게시글의 저장 기록만 표시됩니다.</p>
-        <input id="reviewPassword" type="password" placeholder="공용 비밀번호" autocomplete="off" aria-label="조회용 공용 비밀번호">
         <button id="reviewRefresh" type="button" style="width:100%">↻ 저장 내역 조회</button>
         <p id="reviewListStatus" class="review-side-note small" role="status" style="margin:10px 0"></p>
         <div id="reviewList"></div>
@@ -849,7 +848,6 @@ canvas{display:block;max-width:100%;width:auto;height:auto;touch-action:none}
   // 목록은 화면에 즉시 표시하되 매번 서버에서 최신 내역을 확인합니다.
   const reviewListCache=new Map();
   let reviewListRefreshPending=false;
-  let lastVerifiedReviewPassword=null;
   let reviewRequestedId='', reviewRequestStart=0, saveStart=0, saveUploadStart=0;
   function rememberReviewImage(id,src){
     if(!id)return;
@@ -866,26 +864,26 @@ canvas{display:block;max-width:100%;width:auto;height:auto;touch-action:none}
   const reviewPostId=(reviewParams.get('postId')||'').trim();
   function reviewStatus(message){$('reviewListStatus').textContent=message}
   function reviewSend(action,requestId=''){
-    if(reviewBusy)return;
-    const password=$('reviewPassword').value;
-    if(!password){reviewStatus('공용 비밀번호를 입력해 주세요.');return}
+    if(reviewBusy){if(action==='listRequests')reviewStatus('최신 내역을 확인하고 있어요…');return;}
     if(!reviewPostId){reviewStatus('게시글 고유번호가 없습니다. 아임웹 게시글에서 열어 주세요.');return}
     reviewNonce=crypto.randomUUID?crypto.randomUUID():String(Date.now())+Math.random();
     reviewAction=action;reviewRequestedId=requestId;reviewRequestStart=performance.now();reviewBusy=true;$('reviewRefresh').disabled=true;
     if(action==='listRequests'){
       const cached=reviewListCache.get(reviewPostId);
-      if(cached && password===lastVerifiedReviewPassword){renderReviewList(cached,true);reviewListRefreshPending=true;reviewStatus('저장된 내역 표시 중 · 최신 내역 확인 중…');}
+      if(cached){renderReviewList(cached,true);reviewListRefreshPending=true;reviewStatus('저장된 내역 표시 중 · 최신 내역 확인 중…');}
       else reviewStatus('저장 내역을 불러오는 중…');
     }else reviewStatus('이미지를 불러오는 중…');
     const f=$('reviewPostForm');f.action=REQUEST_WEB_APP_URL;
-    const values={action,postId:reviewPostId,password,requestId,nonce:reviewNonce};
+    const values={action,postId:reviewPostId,password:"",requestId,nonce:reviewNonce};
     Object.entries(values).forEach(([k,v])=>f.elements.namedItem(k).value=v);
     f.submit();
   }
   $('reviewRefresh').onclick=()=>reviewSend('listRequests');
   function renderReviewList(items,fromCache=false){
     const list=$('reviewList');list.replaceChildren();
-    $('reviewPreviewArea').hidden=true;reviewSelected=null;reviewImageData=null;
+    const previousId=reviewSelected?.requestId||'';
+    const stillExists=items.some(x=>x.requestId===previousId);
+    if(!stillExists){$('reviewPreviewArea').hidden=true;reviewSelected=null;reviewImageData=null;}
     if(!items.length){reviewStatus(fromCache?'저장된 내역 없음 · 최신 내역 확인 중…':'이 게시글에 저장된 내역이 없습니다.');return}
     reviewStatus('총 '+items.length+'건 · 최신순'+(fromCache?' · 최신 내역 확인 중…':''));
     items.forEach((item,i)=>{
@@ -893,6 +891,7 @@ canvas{display:block;max-width:100%;width:auto;height:auto;touch-action:none}
       const dt=item.savedAt?new Date(item.savedAt):null;
       const when=dt&&!isNaN(dt.getTime())?dt.toLocaleString('ko-KR'):String(item.savedAt||'');
       b.textContent='수정 요청\n'+when;
+      if(item.requestId===previousId)b.classList.add('active');
       b.style.whiteSpace='pre-line';
       b.onclick=()=>{
         list.querySelectorAll('.review-entry').forEach(x=>x.classList.remove('active'));
@@ -925,9 +924,6 @@ canvas{display:block;max-width:100%;width:auto;height:auto;touch-action:none}
     if(pages.length&&!window.confirm('현재 편집 화면을 저장된 JPG로 교체할까요? 저장하지 않은 수정 내용은 사라집니다.'))return;
     loadReviewJpg(reviewImageData);
   };
-  // 조회용 비밀번호는 브라우저 메모리에만 유지합니다.
-  $('reviewPassword').addEventListener('input',()=>{reviewListCache.clear();lastVerifiedReviewPassword=null});
-  $('reviewPassword').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();reviewSend('listRequests')}});
   $('registerRequest').onclick=()=>{
     commitText();
     if(!pages.length){alert('먼저 이미지를 불러와 주세요.');return}
@@ -1055,12 +1051,10 @@ canvas{display:block;max-width:100%;width:auto;height:auto;touch-action:none}
       pendingNonce=null;$('confirmRegister').disabled=false;hideSaveProgress();
       if(data.success){
         console.info('[수정 요청] 서버 저장 응답',Math.round(performance.now()-saveUploadStart)+'ms','총',Math.round(performance.now()-saveStart)+'ms','서버 처리',data.serverMs??'미측정','ms');
-        $('reviewPassword').value=$('requestPassword').value;
         $('requestPassword').value='';hasUnsavedChanges=false;
         registerModal.hidden=true;
         reviewListCache.delete(reviewPostId);
-        if($('reviewPassword').value)reviewSend('listRequests');
-        else reviewStatus('등록 완료! 저장 내역을 조회하려면 비밀번호를 입력해 주세요.');
+        reviewSend('listRequests');
       }else $('requestStatus').textContent='등록 실패: '+(data.message||'서버 오류');
       return;
     }
@@ -1072,7 +1066,6 @@ canvas{display:block;max-width:100%;width:auto;height:auto;touch-action:none}
       if(!data.success){reviewStatus('조회 실패: '+(data.message||'서버 오류'));return}
       if(action==='listRequests'){
         const items=Array.isArray(data.items)?data.items:[];
-        lastVerifiedReviewPassword=$('reviewPassword').value;
         reviewListCache.set(reviewPostId,items);
         reviewListRefreshPending=false;
         renderReviewList(items);
@@ -1081,11 +1074,12 @@ canvas{display:block;max-width:100%;width:auto;height:auto;touch-action:none}
         if(!data.imageBase64){reviewStatus('이미지 데이터가 없습니다.');return}
         const src='data:image/jpeg;base64,'+data.imageBase64;
         rememberReviewImage(reviewRequestedId,src);
-        displayReviewImage(src,'JPG 미리보기를 불러왔습니다.');
+        if(reviewSelected?.requestId===reviewRequestedId)displayReviewImage(src,'JPG 미리보기를 불러왔습니다.');
       }
     }
   });
 
+  if(reviewPostId)reviewSend('listRequests');
   $('saveAll').onclick=()=>{try{saveAll()}catch(err){taintMsg()}};
   function saveAll(){
     commitText();if(!pages.length)return;
