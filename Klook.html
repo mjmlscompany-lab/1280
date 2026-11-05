@@ -213,6 +213,17 @@ canvas{display:block;max-width:100%;width:auto;height:auto;touch-action:none}
 }
 @media(max-width:370px){#mobileModeSwitch{flex-wrap:wrap}#mobileModeHint{width:100%}}
 
+
+/* 모바일 수정 요청 내역: 균형 잡힌 플로팅 버튼 */
+.review-toggle-label{display:inline-flex;align-items:center;gap:7px;white-space:nowrap}
+.review-clock-icon{width:18px;height:18px;flex:none}
+@media(max-width:700px){
+  .review-side.collapsed{right:16px;bottom:16px;min-width:0;height:42px;max-height:42px;background:#fff;border:1px solid #dce1e4;border-radius:999px;box-shadow:0 3px 12px rgba(0,0,0,.12)}
+  .review-side.collapsed .review-side-head{height:40px;min-height:40px;padding:0 13px;gap:11px;background:#fff;color:#26312e;font-size:12px;font-weight:700;line-height:1;letter-spacing:-.2px;border-radius:999px}
+  .review-side.collapsed .review-clock-icon{width:16px;height:16px;color:#64716d}
+  .review-side.collapsed #reviewSideArrow{font-size:12px;color:#64716d}
+}
+
 /* 수정 요청 버튼: 회전하는 3D 하트 아이콘 */
 #registerRequest{display:inline-flex;align-items:center;justify-content:center;gap:7px}
 #registerRequest .request-heart{display:block;width:26px;height:26px;object-fit:contain;flex-shrink:0;pointer-events:none}
@@ -299,7 +310,7 @@ canvas{display:block;max-width:100%;width:auto;height:auto;touch-action:none}
     <main><div id="pages"></div></main>
     <aside id="reviewSide" class="review-side" aria-label="수정 요청 내역">
       <button id="reviewSideToggle" class="review-side-head" type="button" aria-expanded="true">
-        <span>🕘 수정 요청 내역</span><span id="reviewSideArrow">▾</span>
+        <span class="review-toggle-label"><svg class="review-clock-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><span>수정 요청 내역</span></span><span id="reviewSideArrow">▾</span>
       </button>
       <div class="review-side-body">
         <p class="review-side-note small">현재 게시글의 저장 기록만 표시됩니다.</p>
