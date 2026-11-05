@@ -237,6 +237,21 @@ canvas{display:block;max-width:100%;width:auto;height:auto;touch-action:none}
 .section-color-choice.selected[data-section-color="#1683ff"],.text-color-choice.selected[data-text-color="#1683ff"]{border-color:#1683ff;box-shadow:none}
 .section-color-dot,.text-color-dot{display:inline-block;width:14px;height:14px;border-radius:50%;flex:none}
 @media(max-width:700px){.section-color-choice,.text-color-choice{padding:7px;font-size:11px}.section-color-label,.text-color-label{font-size:12px}}
+
+/* 모바일 전용 수정 요청 내역 모달: 편집 영역과 독립된 화면 */
+.review-modal-backdrop{display:none}
+.review-modal-close{display:none}
+@media(max-width:700px){
+  .review-modal-backdrop.is-open{position:fixed;inset:0;z-index:1990;display:flex;align-items:center;justify-content:center;padding:18px 14px calc(18px + env(safe-area-inset-bottom,0px));background:rgba(15,23,42,.48)}
+  .review-modal-backdrop .review-side{position:relative!important;inset:auto!important;width:100%!important;max-width:440px;min-width:0;height:min(78dvh,700px)!important;max-height:calc(100dvh - 36px - env(safe-area-inset-bottom,0px))!important;display:flex;flex-direction:column;border:1px solid #e1e5e4;border-radius:18px;box-shadow:0 18px 60px #0003;background:#fff;overflow:hidden;transition:none}
+  .review-modal-backdrop .review-side-head{padding:16px 54px 16px 18px!important;min-height:60px!important;height:auto!important;flex:0 0 auto;justify-content:flex-start!important;border-bottom:1px solid #e7e9e8;border-radius:0!important;font-size:16px;font-weight:800;pointer-events:none}
+  .review-modal-backdrop #reviewSideArrow{display:none}
+  .review-modal-backdrop .review-side-body{display:block!important;overflow-y:auto;flex:1;min-height:0;padding:14px 16px 22px;overscroll-behavior:contain}
+  .review-modal-backdrop .review-modal-close{position:absolute;right:12px;top:11px;z-index:2;display:grid;place-items:center;width:38px;height:38px;border:0;border-radius:50%;background:#f3f5f4;color:#36413e;font-size:24px;line-height:1;cursor:pointer}
+  .review-modal-backdrop .review-entry-row{margin:10px 0}
+  .review-modal-backdrop .review-entry{border-radius:12px;padding:12px 44px 12px 13px}
+  body.review-modal-open{overflow:hidden}
+}
 </style>
 </head>
 <body>
@@ -1145,11 +1160,47 @@ canvas{display:block;max-width:100%;width:auto;height:auto;touch-action:none}
   }
   window.addEventListener('resize',syncMobileReviewPanel);
   syncMobileReviewPanel();
+  // 모바일에서는 내역을 독립 모달로 열어 편집 화면과 하단 도구를 가리지 않습니다.
+  const reviewModalBackdrop=document.createElement('div');
+  reviewModalBackdrop.className='review-modal-backdrop';
+  const reviewModalClose=document.createElement('button');
+  reviewModalClose.type='button';reviewModalClose.className='review-modal-close';
+  reviewModalClose.setAttribute('aria-label','수정 요청 내역 닫기');
+  reviewModalClose.textContent='×';
+  const reviewSideHome=$('reviewSide').parentNode;
+  const reviewSideNext=$('reviewSide').nextSibling;
+  document.body.appendChild(reviewModalBackdrop);
+  function closeMobileReview(){
+    if(!reviewModalBackdrop.classList.contains('is-open'))return;
+    const side=$('reviewSide');
+    side.classList.add('collapsed');
+    reviewSideHome.insertBefore(side,reviewSideNext);
+    reviewModalBackdrop.classList.remove('is-open');
+    document.body.classList.remove('review-modal-open');
+    $('reviewSideToggle').setAttribute('aria-expanded','false');
+    $('reviewSideArrow').textContent='▴';
+    $('reviewSideToggle').focus({preventScroll:true});
+  }
+  reviewModalBackdrop.addEventListener('click',e=>{if(e.target===reviewModalBackdrop)closeMobileReview()});
+  reviewModalClose.onclick=closeMobileReview;
+  document.addEventListener('keydown',e=>{if(e.key==='Escape')closeMobileReview()});
+  window.addEventListener('resize',()=>{if(!isMobileEditor())closeMobileReview()});
   $('reviewSideToggle').onclick=()=>{
     const side=$('reviewSide');
+    if(isMobileEditor()){
+      if(reviewModalBackdrop.classList.contains('is-open')){closeMobileReview();return}
+      side.classList.remove('collapsed');
+      reviewModalBackdrop.appendChild(side);
+      reviewModalBackdrop.appendChild(reviewModalClose);
+      reviewModalBackdrop.classList.add('is-open');
+      document.body.classList.add('review-modal-open');
+      $('reviewSideToggle').setAttribute('aria-expanded','true');
+      reviewModalClose.focus({preventScroll:true});
+      return;
+    }
     const collapsed=side.classList.toggle('collapsed');
     $('reviewSideToggle').setAttribute('aria-expanded',String(!collapsed));
-    $('reviewSideArrow').textContent=collapsed?(isMobileEditor()?'▴':'▸'):'▾';
+    $('reviewSideArrow').textContent=collapsed?'▸':'▾';
   };
   $('reviewJpgFile').onchange=e=>{
     const file=e.target.files[0];e.target.value='';
