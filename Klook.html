@@ -101,6 +101,15 @@ canvas{display:block;max-width:100%;width:auto;height:auto;touch-action:none}
 .text-selection{position:absolute;pointer-events:none;border:2px dashed #1683ff;background:rgba(22,131,255,.10);border-radius:4px;z-index:5;box-shadow:0 0 0 2px rgba(255,255,255,.8);display:none}
 .text-selection::after{content:"✥ 이동";position:absolute;left:0;top:-28px;background:#1683ff;color:white;border-radius:5px;padding:5px 9px;font:600 12px sans-serif;white-space:nowrap}
 .selection-handles{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:4}
+/* 수정 요청 등록 창 */
+.register-overlay{position:fixed;inset:0;z-index:1000;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;padding:16px;line-height:1.5}
+.register-dialog{width:min(440px,100%);max-height:90dvh;overflow:auto;background:var(--panel);color:var(--ink);border-radius:14px;padding:24px;box-shadow:0 12px 50px #0004}
+.register-dialog h2{font-size:20px;margin:0 0 6px}
+.register-dialog p{font-size:13px;color:var(--mute);margin:0 0 16px}
+.register-dialog label{display:block;font-size:13px;font-weight:600;margin:12px 0}
+.register-dialog input{display:block;width:100%;font:inherit;font-size:15px;padding:11px;margin-top:5px;background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:8px}
+.register-buttons{display:flex;justify-content:flex-end;gap:8px;margin-top:16px}
+#requestStatus{white-space:pre-wrap;overflow-wrap:anywhere}
 </style>
 </head>
 <body>
@@ -124,6 +133,7 @@ canvas{display:block;max-width:100%;width:auto;height:auto;touch-action:none}
     <div class="sp">
       <button id="undo" disabled>되돌리기</button>
       <button id="saveAll" class="primary">한 장으로 저장</button>
+      <button id="registerRequest" type="button">수정 요청 등록</button>
     </div>
   </div>
   <div class="bar sub">
@@ -153,6 +163,23 @@ canvas{display:block;max-width:100%;width:auto;height:auto;touch-action:none}
   </div>
   <input id="replacementFile" type="file" accept="image/*" hidden>
   <main><div id="pages"></div></main>
+  <div id="registerModal" class="register-overlay" hidden>
+    <div class="register-dialog" role="dialog" aria-modal="true" aria-labelledby="registerTitle">
+      <h2 id="registerTitle">수정 요청 등록</h2>
+      <p>완성한 이미지를 JPG로 저장하고 수정 요청 기록을 남깁니다.</p>
+      <label>고유번호 <input id="requestPostId" type="text" placeholder="예: TEST-003" maxlength="100"></label>
+      <label>게시글 제목 <input id="requestPostTitle" type="text" placeholder="게시글 제목" maxlength="200"></label>
+      <label>작성자 <input id="requestAuthor" type="text" placeholder="작성자 이름" maxlength="100"></label>
+      <label>공용 비밀번호 <input id="requestPassword" type="password" autocomplete="off" placeholder="공용 비밀번호"></label>
+      <p id="requestStatus" role="status" aria-live="polite"></p>
+      <div class="register-buttons"><button id="cancelRegister" type="button">취소</button><button id="confirmRegister" class="primary" type="button">등록하기</button></div>
+    </div>
+  </div>
+  <iframe id="requestTransport" name="requestTransport" hidden title="저장 응답"></iframe>
+  <form id="requestPostForm" method="POST" target="requestTransport" hidden>
+    <input name="action" value="registerRequest">
+    <input name="postId"><input name="postTitle"><input name="author"><input name="password"><input name="imageBase64"><input name="nonce">
+  </form>
 </section>
 
 <script>
@@ -755,6 +782,70 @@ canvas{display:block;max-width:100%;width:auto;height:auto;touch-action:none}
   document.addEventListener('keydown',e=>{
     if((e.ctrlKey||e.metaKey)&&e.key==='z'&&!ed){e.preventDefault();$('undo').click()}
   });
+
+  // 서버에 저장할 때 사용하는 배포 URL. Apps Script의 웹 앱 /exec 주소입니다.
+  const REQUEST_WEB_APP_URL='https://script.google.com/macros/s/AKfycbwKrnl7JYaXN7J71BKGVkOd_v_q877KlrZY3Rd6ACqRRJCpRNR4Us-69XkdMDRz8rxM/exec';
+  let pendingNonce=null;
+  const registerModal=$('registerModal');
+  $('registerRequest').onclick=()=>{
+    commitText();
+    if(!pages.length){alert('먼저 이미지를 불러와 주세요.');return}
+    const params=new URLSearchParams(location.search);
+    $('requestPostId').value=params.get('postId')||params.get('id')||'';
+    $('requestPostTitle').value=params.get('postTitle')||params.get('title')||document.title||'';
+    $('requestAuthor').value='';$('requestPassword').value='';
+    $('requestStatus').textContent='';registerModal.hidden=false;
+    $('requestPostId').focus();
+  };
+  $('cancelRegister').onclick=()=>{if(pendingNonce)return;registerModal.hidden=true};
+  function createMergedCanvas(){
+    commitText();
+    const W=Math.max(...pages.map(p=>p.cv.width));
+    const hs=pages.map(p=>Math.round(p.cv.height*W/p.cv.width));
+    const H=hs.reduce((a,b)=>a+b,0);
+    if(H>30000||W*H>2.5e8)throw Error('이미지가 너무 커서 합칠 수 없습니다.');
+    const o=document.createElement('canvas');o.width=W;o.height=H;
+    const c=o.getContext('2d');c.fillStyle='#fff';c.fillRect(0,0,W,H);
+    let y=0;pages.forEach((p,i)=>{c.drawImage(p.cv,0,y,W,hs[i]);y+=hs[i]});
+    return o;
+  }
+  function jpgUnderLimit(canvas,maxBytes=4*1024*1024){
+    // JPG 변환 후 실제 바이트 크기를 검사합니다.
+    for(const quality of [.85,.75,.65,.55,.45]){
+      const data=canvas.toDataURL('image/jpeg',quality);
+      const base64=data.split(',')[1];
+      if(Math.floor(base64.length*3/4)<=maxBytes)return base64;
+    }
+    throw Error('JPG 용량이 4MB를 초과합니다. 이미지 크기나 장수를 줄여 주세요.');
+  }
+  $('confirmRegister').onclick=()=>{
+    if(pendingNonce)return;
+    const values={postId:$('requestPostId').value.trim(),postTitle:$('requestPostTitle').value.trim(),author:$('requestAuthor').value.trim(),password:$('requestPassword').value};
+    if(Object.values(values).some(v=>!v)){ $('requestStatus').textContent='모든 항목을 입력해 주세요.';return }
+    try{
+      const canvas=createMergedCanvas();
+      values.imageBase64=jpgUnderLimit(canvas);
+      values.nonce=(crypto.randomUUID?crypto.randomUUID():String(Date.now())+Math.random());
+      pendingNonce=values.nonce;
+      const form=$('requestPostForm');form.action=REQUEST_WEB_APP_URL;
+      Object.entries(values).forEach(([key,value])=>{form.elements.namedItem(key).value=value});
+      $('confirmRegister').disabled=true;
+      $('requestStatus').textContent='저장 요청을 전송했습니다. 서버 응답을 기다리는 중입니다…';
+      form.submit();
+    }catch(err){$('requestStatus').textContent='등록 준비 실패: '+err.message}
+  };
+  // Apps Script 응답 HTML이 postMessage로 전달한 결과만 처리합니다.
+  window.addEventListener('message',e=>{
+    if(e.source!==$('requestTransport').contentWindow || !/^https:\/\/(?:[a-z0-9-]+\.)*(?:googleusercontent\.com|google\.com)$/.test(e.origin))return;
+    const data=e.data;
+    if(!data||data.type!=='design-request-result'||data.nonce!==pendingNonce)return;
+    pendingNonce=null;$('confirmRegister').disabled=false;
+    if(data.success){
+      $('requestStatus').textContent='등록 완료! 수정 요청 ID: '+(data.requestId||'발급됨');
+      $('requestPassword').value='';hasUnsavedChanges=false;
+    }else $('requestStatus').textContent='등록 실패: '+(data.message||'서버 오류');
+  });
+
   $('saveAll').onclick=()=>{try{saveAll()}catch(err){taintMsg()}};
   function saveAll(){
     commitText();if(!pages.length)return;
