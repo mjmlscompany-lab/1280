@@ -842,6 +842,7 @@ canvas{display:block;max-width:100%;width:auto;height:auto;touch-action:none}
   let pendingNonce=null;
   const registerModal=$('registerModal');
   let reviewNonce=null, reviewAction='', reviewSelected=null, reviewImageData=null, reviewBusy=false;
+  const reviewImageCache=new Map(); // 현재 탭에서 조회한 JPG 재사용
   const reviewParams=new URLSearchParams(location.search);
   const reviewPostId=(reviewParams.get('postId')||'').trim();
   function reviewStatus(message){$('reviewListStatus').textContent=message}
@@ -872,7 +873,13 @@ canvas{display:block;max-width:100%;width:auto;height:auto;touch-action:none}
         list.querySelectorAll('.review-entry').forEach(x=>x.classList.remove('active'));
         b.classList.add('active');reviewSelected=item;reviewImageData=null;
         $('reviewPreviewArea').hidden=true;
-        reviewSend('getRequestImage',item.requestId);
+        const cached=reviewImageCache.get(item.requestId);
+        if(cached){
+          reviewImageData=cached;
+          $('reviewPreview').src=cached;
+          $('reviewPreviewArea').hidden=false;
+          reviewStatus('JPG 미리보기를 불러왔습니다. (임시 저장된 이미지)');
+        }else reviewSend('getRequestImage',item.requestId);
       };
       list.appendChild(b);
     });
@@ -938,14 +945,27 @@ canvas{display:block;max-width:100%;width:auto;height:auto;touch-action:none}
     let y=0;pages.forEach((p,i)=>{c.drawImage(p.cv,0,y,W,hs[i]);y+=hs[i]});
     return o;
   }
-  function jpgUnderLimit(canvas,maxBytes=4*1024*1024){
-    // JPG 변환 후 실제 바이트 크기를 검사합니다.
-    for(const quality of [.85,.75,.65,.55,.45]){
-      const data=canvas.toDataURL('image/jpeg',quality);
-      const base64=data.split(',')[1];
-      if(Math.floor(base64.length*3/4)<=maxBytes)return base64;
+  function jpgUnderLimit(canvas,maxBytes=950*1024){
+    // 수정 요청용 참고 JPG: 원본 대신 가벼운 열람/재수정용 사본을 저장합니다.
+    // 비율을 유지하며 폭 1000px / 높이 18000px 이내로 축소합니다.
+    const scale=Math.min(1,1000/canvas.width,18000/canvas.height);
+    let width=Math.max(1,Math.round(canvas.width*scale));
+    let height=Math.max(1,Math.round(canvas.height*scale));
+    for(let attempt=0;attempt<5;attempt++){
+      const output=document.createElement('canvas');
+      output.width=width;output.height=height;
+      const ctx=output.getContext('2d');
+      if(!ctx)throw Error('이미지 변환을 시작할 수 없습니다.');
+      ctx.fillStyle='#fff';ctx.fillRect(0,0,width,height);
+      ctx.drawImage(canvas,0,0,width,height);
+      for(const quality of [.72,.6,.48,.36,.26]){
+        const base64=output.toDataURL('image/jpeg',quality).split(',')[1];
+        if(Math.floor(base64.length*3/4)<=maxBytes)return base64;
+      }
+      width=Math.max(1,Math.round(width*.8));
+      height=Math.max(1,Math.round(height*.8));
     }
-    throw Error('JPG 용량이 4MB를 초과합니다. 이미지 크기나 장수를 줄여 주세요.');
+    throw Error('참고용 JPG를 950KB 이하로 줄이지 못했습니다. 이미지 장수를 줄여 주세요.');
   }
   function showSaveProgress(message){
     $('saveProgress').hidden=false;
@@ -1011,7 +1031,13 @@ canvas{display:block;max-width:100%;width:auto;height:auto;touch-action:none}
       if(action==='listRequests')renderReviewList(Array.isArray(data.items)?data.items:[]);
       if(action==='getRequestImage'){
         if(!data.imageBase64){reviewStatus('이미지 데이터가 없습니다.');return}
-        reviewImageData='data:image/jpeg;base64,'+data.imageBase64;
+        const loadedImage='data:image/jpeg;base64,'+data.imageBase64;
+        if(reviewSelected&&reviewSelected.requestId){
+          // 이전 요청이 뒤늦게 도착하더라도 다른 항목에 잘못 표시하지 않습니다.
+          if(data.requestId&&data.requestId!==reviewSelected.requestId)return;
+          reviewImageCache.set(reviewSelected.requestId,loadedImage);
+        }
+        reviewImageData=loadedImage;
         $('reviewPreview').src=reviewImageData;
         $('reviewPreviewArea').hidden=false;
         reviewStatus('JPG 미리보기를 불러왔습니다.');
