@@ -184,6 +184,20 @@ canvas{display:block;max-width:100%;width:auto;height:auto;touch-action:none}
 @media(max-width:700px){
   #app .bar[role=toolbar] .sp #registerRequest{grid-column:1/-1;min-height:52px;font-size:16px;font-weight:800;letter-spacing:0;padding:10px 12px;white-space:normal}
 }
+
+/* 8차: 모바일 전용 이동/편집 전환 (PC에는 표시하지 않음) */
+#mobileModeSwitch{display:none}
+@media(max-width:700px){
+  #mobileModeSwitch{display:flex;flex:0 0 auto;align-items:center;justify-content:space-between;gap:10px;padding:7px 12px;background:var(--panel);border-bottom:1px solid var(--line);font-size:12px}
+  #mobileModeSwitch .mode-buttons{display:flex;gap:6px;flex:0 0 auto}
+  #mobileModeSwitch button{min-height:40px;min-width:90px;font-size:14px;font-weight:700}
+  #mobileModeSwitch button[aria-pressed="true"]{background:#2563eb;border-color:#2563eb;color:#fff}
+  #mobileModeHint{color:var(--mute);line-height:1.35}
+  #app[data-mobile-mode="move"] .stage,#app[data-mobile-mode="move"] .stage canvas:not(.selection-handles){touch-action:pan-y!important}
+  #app[data-mobile-mode="edit"] .stage,#app[data-mobile-mode="edit"] .stage canvas:not(.selection-handles){touch-action:none!important}
+  #app.mobile-typing #mobileModeSwitch{display:none}
+}
+@media(max-width:370px){#mobileModeSwitch{flex-wrap:wrap}#mobileModeHint{width:100%}}
 </style>
 </head>
 <body>
@@ -209,6 +223,13 @@ canvas{display:block;max-width:100%;width:auto;height:auto;touch-action:none}
       <button id="saveAll" class="primary">JPG 저장</button>
       <button id="registerRequest" type="button" aria-label="수정 요청 등록하기">✉ 수정 요청 등록하기</button>
     </div>
+  </div>
+  <div id="mobileModeSwitch" role="group" aria-label="모바일 화면 조작 방식">
+    <div class="mode-buttons">
+      <button id="mobileMoveMode" type="button" aria-pressed="true">✋ 이동</button>
+      <button id="mobileEditMode" type="button" aria-pressed="false">✏️ 편집</button>
+    </div>
+    <span id="mobileModeHint" role="status">화면을 위아래로 밀어 이동하세요.</span>
   </div>
   <div class="bar sub">
     <div class="grp show" id="g-rect">
@@ -295,6 +316,23 @@ canvas{display:block;max-width:100%;width:auto;height:auto;touch-action:none}
   // 브라우저 뒤로가기 보호: 변경사항이 있을 때만 경고합니다.
   let hasUnsavedChanges=false;
   const isMobileEditor=()=>window.matchMedia('(max-width:700px)').matches;
+
+  // 터치 화면에서만 이동 모드가 편집 이벤트를 차단합니다.
+  let mobileInteractionMode='move';
+  const mobileMoveActive=e=>isMobileEditor()&&mobileInteractionMode==='move'&&e.pointerType!=='mouse';
+  function setMobileInteractionMode(mode){
+    mobileInteractionMode=mode;
+    $('app').dataset.mobileMode=mode;
+    $('mobileMoveMode').setAttribute('aria-pressed',String(mode==='move'));
+    $('mobileEditMode').setAttribute('aria-pressed',String(mode==='edit'));
+    $('mobileModeHint').textContent=mode==='move'?'화면을 위아래로 밀어 이동하세요.':'말풍선과 영역을 선택·조정할 수 있어요.';
+    if(drag){drag=null;pages.forEach(render)}
+    if(mode==='move'){commitText();cancelPending();selected=null;pages.forEach(render)}
+  }
+  $('mobileMoveMode').onclick=()=>setMobileInteractionMode('move');
+  $('mobileEditMode').onclick=()=>setMobileInteractionMode('edit');
+  setMobileInteractionMode('move');
+
   // Android / iOS 키보드가 차지한 공간을 제외한 실제 보이는 높이로 편집 영역 조정
   function syncMobileViewport(){
     if(!isMobileEditor()){document.documentElement.style.removeProperty('--mobile-viewport-height');return}
@@ -724,6 +762,8 @@ canvas{display:block;max-width:100%;width:auto;height:auto;touch-action:none}
   function bind(p){
     const cv=p.cv;
     cv.addEventListener('pointerdown',e=>{
+      if(mobileMoveActive(e))return; // 이동 모드에서는 기본 스크롤 동작 유지
+      if(isMobileEditor()&&e.pointerType==='touch')e.preventDefault();
       const pt=pos(e,p);
       if(tool==='move'){
         e.preventDefault();commitText();cancelPending();
@@ -772,6 +812,7 @@ canvas{display:block;max-width:100%;width:auto;height:auto;touch-action:none}
       else{snap(p,true);drag={p,last:pt};erase(p,pt,pt)}
     });
     cv.addEventListener('pointermove',e=>{
+      if(mobileMoveActive(e))return;
       if(!drag||drag.p!==p){
         if(tool==='text'&&!ed){const a=hit(p,pos(e,p),'text');showTextSelection(p,a);cv.style.cursor=a?'grab':'text'}
         else if(tool==='rect'){cv.style.cursor=hit(p,pos(e,p),'rect')?'grab':'crosshair'}
