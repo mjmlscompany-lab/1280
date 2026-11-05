@@ -34,6 +34,8 @@ button:disabled{opacity:.4;cursor:default}
 .grp{display:none;gap:12px;align-items:center;flex-wrap:wrap}
 .grp.show{display:flex}
 input[type=range]{width:120px;accent-color:var(--accent)}
+/* 섹션 색상 레이블과 원형 컬러 피커 수직 중앙 정렬 */
+.section-color-label{display:inline-flex;align-items:center;gap:9px;white-space:nowrap;line-height:1}
 /* 원형 컬러 피커: 기존 색상 선택 기능 유지 */
 input[type=color]{width:36px;height:36px;box-sizing:border-box;padding:3px;border:1px solid var(--line);border-radius:50%;background:var(--panel);cursor:pointer;vertical-align:middle;overflow:hidden;appearance:none;-webkit-appearance:none}
 input[type=color]::-webkit-color-swatch-wrapper{padding:0;border-radius:50%;overflow:hidden}
@@ -247,7 +249,7 @@ canvas{display:block;max-width:100%;width:auto;height:auto;touch-action:none}
   </div>
   <div class="bar sub">
     <div class="grp show" id="g-rect">
-      <label>색상 <input id="color1" type="color" value="#ff3b30"></label>
+      <label class="section-color-label">섹션 색상 <input id="color1" type="color" value="#ff3b30"></label>
       <span>영역을 드래그한 후 ✓를 눌러 확정하세요. 모바일에서는 세로 스와이프로 스크롤합니다.</span>
     </div>
     <div class="grp" id="g-text">
