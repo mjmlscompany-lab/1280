@@ -101,6 +101,22 @@ canvas{display:block;max-width:100%;width:auto;height:auto;touch-action:none}
 .text-selection{position:absolute;pointer-events:none;border:2px dashed #1683ff;background:rgba(22,131,255,.10);border-radius:4px;z-index:5;box-shadow:0 0 0 2px rgba(255,255,255,.8);display:none}
 .text-selection::after{content:"✥ 이동";position:absolute;left:0;top:-28px;background:#1683ff;color:white;border-radius:5px;padding:5px 9px;font:600 12px sans-serif;white-space:nowrap}
 .selection-handles{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:4}
+/* 우측 수정 요청 내역: 서버 연동 전 단계에서는 JPG 직접 불러오기를 제공합니다. */
+.editor-workspace{flex:1;min-height:0;display:flex;overflow:hidden}
+.editor-workspace>main{min-width:0}
+.review-side{width:252px;flex:0 0 252px;min-height:0;background:var(--panel);border-left:1px solid var(--line);display:flex;flex-direction:column;font-size:13px}
+.review-side-head{width:100%;display:flex;justify-content:space-between;align-items:center;padding:13px 12px;font-weight:700;text-align:left;border:0;border-radius:0;border-bottom:1px solid var(--line)}
+.review-side-body{padding:12px;overflow:auto;min-height:0}
+.review-side-note{color:var(--mute);line-height:1.65;font-size:12px;margin:0 0 12px}
+.review-side .btn{display:block;text-align:center;width:100%;padding:10px 8px}
+.review-side.collapsed{width:44px;flex-basis:44px}
+.review-side.collapsed .review-side-body{display:none}
+.review-side.collapsed .review-side-head{writing-mode:vertical-rl;gap:12px;justify-content:flex-start;min-height:175px}
+@media(max-width:700px){
+ .editor-workspace{position:relative}
+ .review-side{position:absolute;right:0;top:0;bottom:0;z-index:40;width:min(260px,85vw);box-shadow:-3px 0 12px #0002}
+ .review-side.collapsed{width:42px;box-shadow:none}
+}
 /* 수정 요청 등록 창 */
 .register-overlay{position:fixed;inset:0;z-index:1000;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;padding:16px;line-height:1.5}
 .register-dialog{width:min(440px,100%);max-height:90dvh;overflow:auto;background:var(--panel);color:var(--ink);border-radius:14px;padding:24px;box-shadow:0 12px 50px #0004}
@@ -162,7 +178,20 @@ canvas{display:block;max-width:100%;width:auto;height:auto;touch-action:none}
     <button type="button" class="primary" id="mobileTextDone">완료</button>
   </div>
   <input id="replacementFile" type="file" accept="image/*" hidden>
-  <main><div id="pages"></div></main>
+  <div class="editor-workspace">
+    <main><div id="pages"></div></main>
+    <aside id="reviewSide" class="review-side" aria-label="수정 요청 내역">
+      <button id="reviewSideToggle" class="review-side-head" type="button" aria-expanded="true">
+        <span>🕘 수정 요청 내역</span><span id="reviewSideArrow">▾</span>
+      </button>
+      <div class="review-side-body">
+        <p class="review-side-note">게시글별 저장 내역 자동 조회는 다음 단계에서 연결할 예정입니다.</p>
+        <p class="review-side-note">현재는 구글 드라이브에서 저장한 JPG를 내려받아 이어서 수정할 수 있어요.</p>
+        <label class="btn" for="reviewJpgFile">📂 저장된 JPG 불러오기</label>
+        <input id="reviewJpgFile" type="file" accept="image/jpeg,image/png,image/webp" hidden>
+      </div>
+    </aside>
+  </div>
   <div id="registerModal" class="register-overlay" hidden>
     <div class="register-dialog" role="dialog" aria-modal="true" aria-labelledby="registerTitle">
       <h2 id="registerTitle">수정 요청 등록</h2>
@@ -794,6 +823,31 @@ canvas{display:block;max-width:100%;width:auto;height:auto;touch-action:none}
     $('requestPassword').focus();
   };
   $('cancelRegister').onclick=()=>{if(pendingNonce)return;registerModal.hidden=true};
+  // 저장된 JPG를 한 장의 새 바탕 이미지로 불러옵니다. 기존 주석은 JPG에 합쳐진 상태입니다.
+  $('reviewSideToggle').onclick=()=>{
+    const side=$('reviewSide');
+    const collapsed=side.classList.toggle('collapsed');
+    $('reviewSideToggle').setAttribute('aria-expanded',String(!collapsed));
+    $('reviewSideArrow').textContent=collapsed?'▸':'▾';
+  };
+  $('reviewJpgFile').onchange=e=>{
+    const file=e.target.files[0];e.target.value='';
+    if(!file)return;
+    if(!file.type.startsWith('image/')){alert('이미지 파일을 선택해 주세요.');return}
+    if(file.size>100*1024*1024){alert('100MB 이하 이미지만 불러올 수 있습니다.');return}
+    if(pages.length&&!window.confirm('현재 편집 화면을 저장된 JPG로 교체할까요? 저장하지 않은 수정 내용은 사라집니다.'))return;
+    const objectUrl=URL.createObjectURL(file);
+    const img=new Image();
+    img.onload=()=>{
+      pages=[];history=[];selected=null;drag=null;ed=null;pendingRect=null;
+      removeRectActions();$('pages').replaceChildren();$('undo').disabled=true;
+      addPage(img);hasUnsavedChanges=false;setTool('rect');
+      URL.revokeObjectURL(objectUrl);
+    };
+    img.onerror=()=>{URL.revokeObjectURL(objectUrl);alert('이미지를 불러오지 못했습니다.')};
+    img.src=objectUrl;
+  };
+
   function createMergedCanvas(){
     commitText();
     const W=Math.max(...pages.map(p=>p.cv.width));
