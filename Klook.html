@@ -131,6 +131,12 @@ canvas{display:block;max-width:100%;width:auto;height:auto;touch-action:none}
 .register-dialog input{display:block;width:100%;font:inherit;font-size:15px;padding:11px;margin-top:5px;background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:8px}
 .register-buttons{display:flex;justify-content:flex-end;gap:8px;margin-top:16px}
 #requestStatus{white-space:pre-wrap;overflow-wrap:anywhere}
+.save-progress{margin:12px 0 6px}
+.save-progress-track{height:9px;overflow:hidden;border-radius:999px;background:var(--line);position:relative}
+.save-progress-track::before{content:"";position:absolute;inset:0 auto 0 0;width:35%;border-radius:inherit;background:var(--accent);animation:save-progress-slide 1.3s ease-in-out infinite}
+@keyframes save-progress-slide{0%{transform:translateX(-110%)}100%{transform:translateX(300%)}}
+@media(prefers-reduced-motion:reduce){.save-progress-track::before{animation:none;width:100%;opacity:.65}}
+.save-progress-caption{font-size:12px;color:var(--mute);margin-top:7px}
 </style>
 </head>
 <body>
@@ -213,6 +219,10 @@ canvas{display:block;max-width:100%;width:auto;height:auto;touch-action:none}
       <!-- 게시글 정보는 아임웹에서 전달된 URL을 통해 자동 설정합니다. -->
       <label>공용 비밀번호 <input id="requestPassword" type="password" autocomplete="off" placeholder="공용 비밀번호"></label>
       <p id="requestStatus" role="status" aria-live="polite"></p>
+      <div id="saveProgress" class="save-progress" role="status" aria-live="polite" hidden>
+        <div class="save-progress-track" role="progressbar" aria-label="저장 처리 중"></div>
+        <div id="saveProgressCaption" class="save-progress-caption">이미지를 준비하고 있어요…</div>
+      </div>
       <div class="register-buttons"><button id="cancelRegister" type="button">취소</button><button id="confirmRegister" class="primary" type="button">등록하기</button></div>
     </div>
   </div>
@@ -893,7 +903,7 @@ canvas{display:block;max-width:100%;width:auto;height:auto;touch-action:none}
     if(!pages.length){alert('먼저 이미지를 불러와 주세요.');return}
     const params=new URLSearchParams(location.search);
     $('requestPassword').value='';
-    $('requestStatus').textContent='';registerModal.hidden=false;
+    $('requestStatus').textContent='';hideSaveProgress();registerModal.hidden=false;
     $('requestPassword').focus();
   };
   $('cancelRegister').onclick=()=>{if(pendingNonce)return;registerModal.hidden=true};
@@ -942,7 +952,14 @@ canvas{display:block;max-width:100%;width:auto;height:auto;touch-action:none}
     }
     throw Error('JPG 용량이 4MB를 초과합니다. 이미지 크기나 장수를 줄여 주세요.');
   }
-  $('confirmRegister').onclick=()=>{
+  function showSaveProgress(message){
+    $('saveProgress').hidden=false;
+    $('saveProgressCaption').textContent=message;
+  }
+  function hideSaveProgress(){$('saveProgress').hidden=true}
+  // 압축 등 무거운 동기 작업을 시작하기 전에 진행 표시가 먼저 그려지도록 합니다.
+  const paintSaveProgress=()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
+  $('confirmRegister').onclick=async()=>{
     if(pendingNonce)return;
     const params=new URLSearchParams(location.search);
     const values={
@@ -957,16 +974,25 @@ canvas{display:block;max-width:100%;width:auto;height:auto;touch-action:none}
       return;
     }
     try{
+      $('confirmRegister').disabled=true;
+      showSaveProgress('이미지를 JPG로 준비하고 있어요…');
+      $('requestStatus').textContent='저장 준비 중입니다. 잠시만 기다려 주세요.';
+      await paintSaveProgress();
       const canvas=createMergedCanvas();
       values.imageBase64=jpgUnderLimit(canvas);
       values.nonce=(crypto.randomUUID?crypto.randomUUID():String(Date.now())+Math.random());
       pendingNonce=values.nonce;
       const form=$('requestPostForm');form.action=REQUEST_WEB_APP_URL;
       Object.entries(values).forEach(([key,value])=>{form.elements.namedItem(key).value=value});
-      $('confirmRegister').disabled=true;
-      $('requestStatus').textContent='저장 요청을 전송했습니다. 서버 응답을 기다리는 중입니다…';
+      showSaveProgress('구글 드라이브에 저장하고 기록하는 중이에요…');
+      $('requestStatus').textContent='저장 중입니다. 완료될 때까지 창을 닫지 마세요.';
       form.submit();
-    }catch(err){$('requestStatus').textContent='등록 준비 실패: '+err.message}
+    }catch(err){
+      pendingNonce=null;
+      $('confirmRegister').disabled=false;
+      hideSaveProgress();
+      $('requestStatus').textContent='등록 준비 실패: '+err.message;
+    }
   };
   // Apps Script HTML은 중첩 iframe 안에서 실행될 수 있어 top 창으로 메시지를 보냅니다.
   // 메시지는 nonce가 일치할 때만 수락하며, 신뢰된 Google 응답 출처만 허용합니다.
@@ -975,7 +1001,7 @@ canvas{display:block;max-width:100%;width:auto;height:auto;touch-action:none}
     const data=e.data;
     if(!data||data.type!=='design-request-result')return;
     if(data.nonce===pendingNonce&&pendingNonce){
-      pendingNonce=null;$('confirmRegister').disabled=false;
+      pendingNonce=null;$('confirmRegister').disabled=false;hideSaveProgress();
       if(data.success){
         $('reviewPassword').value=$('requestPassword').value;
         $('requestPassword').value='';hasUnsavedChanges=false;
