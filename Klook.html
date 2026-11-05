@@ -984,7 +984,7 @@ canvas{display:block;max-width:100%;width:auto;height:auto;touch-action:none}
       pendingNonce=values.nonce;
       const form=$('requestPostForm');form.action=REQUEST_WEB_APP_URL;
       Object.entries(values).forEach(([key,value])=>{form.elements.namedItem(key).value=value});
-      showSaveProgress('구글 드라이브에 저장하고 기록하는 중이에요…');
+      showSaveProgress('수정 요청을 저장하고 있어요…');
       $('requestStatus').textContent='저장 중입니다. 완료될 때까지 창을 닫지 마세요.';
       form.submit();
     }catch(err){
