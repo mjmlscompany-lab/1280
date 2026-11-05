@@ -273,6 +273,16 @@ canvas{display:block;max-width:100%;width:auto;height:auto;touch-action:none}
   .review-modal-backdrop .review-trash-btn{right:8px;width:34px;height:34px}
   .review-modal-backdrop #reviewRefresh{min-height:42px;border-radius:10px}
 }
+
+/* 모바일 요청 내역 UI 미세 조정: 아이콘 중앙 정렬 및 간격 축소 */
+@media(max-width:700px){
+  .review-side.collapsed{width:max-content;flex-basis:auto;max-width:calc(100vw - 28px)}
+  .review-side.collapsed .review-side-head{display:inline-flex!important;align-items:center!important;justify-content:center!important;gap:6px!important;padding:0 11px!important;width:auto!important;white-space:nowrap}
+  .review-side.collapsed .review-toggle-label{display:inline-flex;align-items:center;justify-content:center;gap:6px;line-height:1}
+  .review-side.collapsed .review-clock-icon{width:15px;height:15px;display:block}
+  .review-side.collapsed #reviewSideArrow{display:inline-flex;align-items:center;justify-content:center;margin-left:1px;line-height:1}
+  .review-modal-backdrop .review-modal-close{display:flex!important;align-items:center!important;justify-content:center!important;padding:0!important;line-height:1!important;font-family:Arial,sans-serif;font-weight:400;transform:none}
+}
 </style>
 </head>
 <body>
