@@ -849,6 +849,7 @@ canvas{display:block;max-width:100%;width:auto;height:auto;touch-action:none}
   const reviewListCache=new Map();
   let reviewListRefreshPending=false;
   let reviewRequestedId='', reviewRequestStart=0, saveStart=0, saveUploadStart=0;
+  let savedImageForCache=null;
   function rememberReviewImage(id,src){
     if(!id)return;
     reviewImageCache.delete(id);reviewImageCache.set(id,src);
@@ -984,6 +985,13 @@ canvas{display:block;max-width:100%;width:auto;height:auto;touch-action:none}
   async function jpgUnderLimit(canvas,maxBytes=4*1024*1024){
     // 일반적인 이미지는 1회 인코딩으로 끝내고, 큰 경우에만 추가 압축합니다.
     let target=canvas;
+    // 상세페이지가 매우 넓을 때만 가로 폭을 제한해 인코딩/전송량을 줄입니다.
+    // 작은 글자의 가독성을 위해 1600px 이하 원본은 그대로 둡니다.
+    if(target.width>1600){
+      const resized=document.createElement('canvas');
+      resized.width=1600;resized.height=Math.round(target.height*1600/target.width);
+      resized.getContext('2d').drawImage(target,0,0,resized.width,resized.height);target=resized;
+    }
     for(let scaleTry=0;scaleTry<4;scaleTry++){
       for(const quality of [.72,.55]){
         const blob=await canvasJpegBlob(target,quality);
@@ -1026,16 +1034,18 @@ canvas{display:block;max-width:100%;width:auto;height:auto;touch-action:none}
       saveStart=performance.now();
       const canvas=createMergedCanvas();
       values.imageBase64=await jpgUnderLimit(canvas);
+      // 서버가 저장한 것과 동일한 JPG를 재사용합니다. 별도의 이미지 재조회가 필요 없습니다.
+      savedImageForCache='data:image/jpeg;base64,'+values.imageBase64;
       console.info('[수정 요청] JPG 준비',Math.round(performance.now()-saveStart)+'ms', 'base64',values.imageBase64.length);
       values.nonce=(crypto.randomUUID?crypto.randomUUID():String(Date.now())+Math.random());
       pendingNonce=values.nonce;
       const form=$('requestPostForm');form.action=REQUEST_WEB_APP_URL;
       Object.entries(values).forEach(([key,value])=>{form.elements.namedItem(key).value=value});
-      showSaveProgress('수정 요청을 저장하고 있어요…');
+      showSaveProgress('서버에 전송하고 저장하고 있어요…');
       $('requestStatus').textContent='저장 중입니다. 완료될 때까지 창을 닫지 마세요.';
       saveUploadStart=performance.now();form.submit();
     }catch(err){
-      pendingNonce=null;
+      pendingNonce=null;savedImageForCache=null;
       $('confirmRegister').disabled=false;
       hideSaveProgress();
       $('requestStatus').textContent='등록 준비 실패: '+err.message;
@@ -1053,9 +1063,22 @@ canvas{display:block;max-width:100%;width:auto;height:auto;touch-action:none}
         console.info('[수정 요청] 서버 저장 응답',Math.round(performance.now()-saveUploadStart)+'ms','총',Math.round(performance.now()-saveStart)+'ms','서버 처리',data.serverMs??'미측정','ms');
         $('requestPassword').value='';hasUnsavedChanges=false;
         registerModal.hidden=true;
-        reviewListCache.delete(reviewPostId);
-        reviewSend('listRequests');
-      }else $('requestStatus').textContent='등록 실패: '+(data.message||'서버 오류');
+        // 저장 성공 응답에 포함된 메타데이터로 목록을 즉시 갱신합니다.
+        // 저장 완료 후 4~5초 걸리던 추가 조회를 생략합니다.
+        if(data.requestId){
+          const saved={requestId:data.requestId,savedAt:data.savedAt||new Date().toISOString()};
+          const existing=reviewListCache.get(reviewPostId)||[];
+          const updated=[saved,...existing.filter(x=>x.requestId!==saved.requestId)];
+          reviewListCache.set(reviewPostId,updated);
+          if(savedImageForCache)rememberReviewImage(saved.requestId,savedImageForCache);
+          renderReviewList(updated);
+          reviewStatus('저장 완료 · 총 '+updated.length+'건 (최신 내역)');
+        }else{
+          reviewListCache.delete(reviewPostId);
+          reviewSend('listRequests');
+        }
+        savedImageForCache=null;
+      }else {savedImageForCache=null;$('requestStatus').textContent='등록 실패: '+(data.message||'서버 오류');}
       return;
     }
     if(data.nonce===reviewNonce&&reviewNonce){
