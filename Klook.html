@@ -167,9 +167,7 @@ canvas{display:block;max-width:100%;width:auto;height:auto;touch-action:none}
     <div class="register-dialog" role="dialog" aria-modal="true" aria-labelledby="registerTitle">
       <h2 id="registerTitle">수정 요청 등록</h2>
       <p>완성한 이미지를 JPG로 저장하고 수정 요청 기록을 남깁니다.</p>
-      <label>고유번호 <input id="requestPostId" type="text" placeholder="예: TEST-003" maxlength="100"></label>
-      <label>게시글 제목 <input id="requestPostTitle" type="text" placeholder="게시글 제목" maxlength="200"></label>
-      <label>작성자 <input id="requestAuthor" type="text" placeholder="작성자 이름" maxlength="100"></label>
+      <!-- 게시글 정보는 아임웹에서 전달된 URL을 통해 자동 설정합니다. -->
       <label>공용 비밀번호 <input id="requestPassword" type="password" autocomplete="off" placeholder="공용 비밀번호"></label>
       <p id="requestStatus" role="status" aria-live="polite"></p>
       <div class="register-buttons"><button id="cancelRegister" type="button">취소</button><button id="confirmRegister" class="primary" type="button">등록하기</button></div>
@@ -791,11 +789,9 @@ canvas{display:block;max-width:100%;width:auto;height:auto;touch-action:none}
     commitText();
     if(!pages.length){alert('먼저 이미지를 불러와 주세요.');return}
     const params=new URLSearchParams(location.search);
-    $('requestPostId').value=params.get('postId')||params.get('id')||'';
-    $('requestPostTitle').value=params.get('postTitle')||params.get('title')||document.title||'';
-    $('requestAuthor').value='';$('requestPassword').value='';
+    $('requestPassword').value='';
     $('requestStatus').textContent='';registerModal.hidden=false;
-    $('requestPostId').focus();
+    $('requestPassword').focus();
   };
   $('cancelRegister').onclick=()=>{if(pendingNonce)return;registerModal.hidden=true};
   function createMergedCanvas(){
@@ -820,8 +816,18 @@ canvas{display:block;max-width:100%;width:auto;height:auto;touch-action:none}
   }
   $('confirmRegister').onclick=()=>{
     if(pendingNonce)return;
-    const values={postId:$('requestPostId').value.trim(),postTitle:$('requestPostTitle').value.trim(),author:$('requestAuthor').value.trim(),password:$('requestPassword').value};
-    if(Object.values(values).some(v=>!v)){ $('requestStatus').textContent='모든 항목을 입력해 주세요.';return }
+    const params=new URLSearchParams(location.search);
+    const values={
+      postId:(params.get('postId')||'').trim(),
+      postTitle:(params.get('postTitle')||'').trim(),
+      author:'디자인 수정 요청',
+      password:$('requestPassword').value
+    };
+    if(!values.password){$('requestStatus').textContent='공용 비밀번호를 입력해 주세요.';return}
+    if(!values.postId||!values.postTitle){
+      $('requestStatus').textContent='게시글 정보가 전달되지 않았습니다. 아임웹 게시글에서 편집기를 다시 열어 주세요.';
+      return;
+    }
     try{
       const canvas=createMergedCanvas();
       values.imageBase64=jpgUnderLimit(canvas);
