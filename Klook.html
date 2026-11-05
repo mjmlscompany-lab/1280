@@ -112,6 +112,7 @@ canvas{display:block;max-width:100%;width:auto;height:auto;touch-action:none}
 .review-side-body input[type=password]{width:100%;padding:9px;border:1px solid var(--line);border-radius:7px;background:var(--bg);color:var(--ink);margin-bottom:8px}
 .review-entry{display:block;width:100%;text-align:left;margin:6px 0;padding:9px;border:1px solid var(--line);border-radius:8px;background:var(--panel);font-size:12px}
 .review-entry.active{border-color:var(--accent)}
+.review-entry-row{display:flex;align-items:stretch;gap:6px;margin:6px 0}.review-entry-row .review-entry{flex:1;min-width:0;margin:0}.review-trash-btn{flex:0 0 auto;border:1px solid #f3b5b5;border-radius:8px;background:#fff1f2;color:#9f1239;font-size:12px;padding:0 10px;min-height:42px}.review-trash-btn:disabled{opacity:.5}.review-trash-btn.restore{background:#eff6ff;color:#1d4ed8;border-color:#bfdbfe}
 .review-preview{display:block;max-width:100%;max-height:180px;object-fit:contain;margin:10px auto;border:1px solid var(--line)}
 .review-side-note.small{font-size:11px}
 .review-side.collapsed{width:44px;flex-basis:44px}
@@ -268,6 +269,8 @@ canvas{display:block;max-width:100%;width:auto;height:auto;touch-action:none}
         <button id="reviewRefresh" type="button" style="width:100%">↻ 저장 내역 조회</button>
         <p id="reviewListStatus" class="review-side-note small" role="status" style="margin:10px 0"></p>
         <div id="reviewList"></div>
+        <button id="reviewTrashToggle" type="button" style="width:100%;margin-top:10px">🗑️ 휴지통 보기</button>
+        <p class="review-side-note small" id="reviewTrashHint" hidden>휴지통 내역은 비밀번호 확인 후 표시됩니다. 복구할 수 있습니다.</p>
         <div id="reviewPreviewArea" hidden>
           <img id="reviewPreview" class="review-preview" alt="선택한 수정 요청 JPG">
           <button id="reviewContinue" type="button" class="primary" style="width:100%">✏️ 이어서 수정하기</button>
@@ -291,6 +294,15 @@ canvas{display:block;max-width:100%;width:auto;height:auto;touch-action:none}
         <div id="saveProgressCaption" class="save-progress-caption">이미지를 준비하고 있어요…</div>
       </div>
       <div class="register-buttons"><button id="cancelRegister" type="button">취소</button><button id="confirmRegister" class="primary" type="button">등록하기</button></div>
+    </div>
+  </div>
+  <div id="trashModal" class="register-overlay" hidden>
+    <div class="register-dialog" role="dialog" aria-modal="true" aria-labelledby="trashTitle">
+      <h2 id="trashTitle">수정 요청 삭제</h2>
+      <p id="trashDescription">삭제한 요청은 휴지통에서 복구할 수 있습니다.</p>
+      <label>공용 비밀번호 <input id="trashPassword" type="password" autocomplete="off" placeholder="공용 비밀번호"></label>
+      <p id="trashStatus" role="status" aria-live="polite"></p>
+      <div class="register-buttons"><button id="trashCancel" type="button">취소</button><button id="trashConfirm" class="primary" type="button">확인</button></div>
     </div>
   </div>
   <iframe id="requestTransport" name="requestTransport" hidden title="저장 응답"></iframe>
@@ -937,6 +949,7 @@ canvas{display:block;max-width:100%;width:auto;height:auto;touch-action:none}
   const reviewListCache=new Map();
   let reviewListRefreshPending=false;
   let reviewRequestedId='', reviewRequestStart=0, saveStart=0, saveUploadStart=0;
+  let trashView=false,trashItems=[],trashIntent=null;
   let savedImageForCache=null;
   function rememberReviewImage(id,src){
     if(!id)return;
@@ -952,7 +965,7 @@ canvas{display:block;max-width:100%;width:auto;height:auto;touch-action:none}
   const reviewParams=new URLSearchParams(location.search);
   const reviewPostId=(reviewParams.get('postId')||'').trim();
   function reviewStatus(message){$('reviewListStatus').textContent=message}
-  function reviewSend(action,requestId=''){
+  function reviewSend(action,requestId='',password=''){
     if(reviewBusy){if(action==='listRequests')reviewStatus('최신 내역을 확인하고 있어요…');return;}
     if(!reviewPostId){reviewStatus('게시글 고유번호가 없습니다. 아임웹 게시글에서 열어 주세요.');return}
     reviewNonce=crypto.randomUUID?crypto.randomUUID():String(Date.now())+Math.random();
@@ -961,19 +974,39 @@ canvas{display:block;max-width:100%;width:auto;height:auto;touch-action:none}
       const cached=reviewListCache.get(reviewPostId);
       if(cached){renderReviewList(cached,true);reviewListRefreshPending=true;reviewStatus('저장된 내역 표시 중 · 최신 내역 확인 중…');}
       else reviewStatus('저장 내역을 불러오는 중…');
-    }else reviewStatus('이미지를 불러오는 중…');
+    }else reviewStatus(action==='getRequestImage'?'이미지를 불러오는 중…':'요청을 처리하고 있어요…');
     const f=$('reviewPostForm');f.action=REQUEST_WEB_APP_URL;
-    const values={action,postId:reviewPostId,password:"",requestId,nonce:reviewNonce};
+    const values={action,postId:reviewPostId,password,requestId,nonce:reviewNonce};
     Object.entries(values).forEach(([k,v])=>f.elements.namedItem(k).value=v);
     f.submit();
   }
-  $('reviewRefresh').onclick=()=>reviewSend('listRequests');
+  $('reviewRefresh').onclick=()=>{if(trashView){openTrashModal('listTrash','');}else reviewSend('listRequests')};
+  $('reviewTrashToggle').onclick=()=>{
+    if(trashView){trashView=false;$('reviewTrashToggle').textContent='🗑️ 휴지통 보기';$('reviewTrashHint').hidden=true;renderReviewList(reviewListCache.get(reviewPostId)||[]);}
+    else openTrashModal('listTrash','');
+  };
+  function openTrashModal(action,id){
+    if(reviewBusy){reviewStatus('현재 요청이 완료된 후 다시 시도해 주세요.');return;}
+    trashIntent={action,id};$('trashPassword').value='';$('trashStatus').textContent='';
+    $('trashTitle').textContent=action==='listTrash'?'휴지통 조회':action==='restoreRequest'?'수정 요청 복구':'수정 요청 휴지통 이동';
+    $('trashDescription').textContent=action==='listTrash'?'휴지통 내역을 확인하려면 비밀번호를 입력해 주세요.':action==='restoreRequest'?'선택한 수정 요청을 다시 목록에 표시할까요?':'선택한 수정 요청을 휴지통으로 이동할까요? 나중에 복구할 수 있습니다.';
+    $('trashConfirm').textContent=action==='listTrash'?'조회하기':action==='restoreRequest'?'복구하기':'휴지통으로 이동';
+    $('trashModal').hidden=false;$('trashPassword').focus();
+  }
+  $('trashCancel').onclick=()=>{$('trashModal').hidden=true;trashIntent=null};
+  $('trashPassword').addEventListener('keydown',e=>{if(e.key==='Enter'){$('trashConfirm').click()}});
+  $('trashConfirm').onclick=()=>{
+    if(!trashIntent)return;const pw=$('trashPassword').value;
+    if(!pw){$('trashStatus').textContent='비밀번호를 입력해 주세요.';return;}
+    const {action,id}=trashIntent;trashIntent=null;$('trashPassword').value='';$('trashModal').hidden=true;
+    reviewSend(action,id,pw);
+  };
   function renderReviewList(items,fromCache=false){
     const list=$('reviewList');list.replaceChildren();
     const previousId=reviewSelected?.requestId||'';
     const stillExists=items.some(x=>x.requestId===previousId);
     if(!stillExists){$('reviewPreviewArea').hidden=true;reviewSelected=null;reviewImageData=null;}
-    if(!items.length){reviewStatus(fromCache?'저장된 내역 없음 · 최신 내역 확인 중…':'이 게시글에 저장된 내역이 없습니다.');return}
+    if(!items.length){reviewStatus(trashView?'휴지통이 비어 있습니다.':(fromCache?'저장된 내역 없음 · 최신 내역 확인 중…':'이 게시글에 저장된 내역이 없습니다.'));return}
     reviewStatus('총 '+items.length+'건 · 최신순'+(fromCache?' · 최신 내역 확인 중…':''));
     items.forEach((item,i)=>{
       const b=document.createElement('button');b.type='button';b.className='review-entry';
@@ -993,7 +1026,11 @@ canvas{display:block;max-width:100%;width:auto;height:auto;touch-action:none}
           displayReviewImage(cached,'JPG 미리보기 준비 완료 (임시 캐시)');
         }else reviewSend('getRequestImage',item.requestId);
       };
-      list.appendChild(b);
+      const row=document.createElement('div');row.className='review-entry-row';row.appendChild(b);
+      const del=document.createElement('button');del.type='button';del.className='review-trash-btn'+(trashView?' restore':'');
+      del.textContent=trashView?'↩ 복구':'🗑 삭제';del.setAttribute('aria-label',trashView?'수정 요청 복구':'수정 요청 휴지통 이동');
+      del.onclick=()=>openTrashModal(trashView?'restoreRequest':'trashRequest',item.requestId);
+      row.appendChild(del);list.appendChild(row);
     });
   }
   function loadReviewJpg(dataUrl){
@@ -1192,6 +1229,20 @@ canvas{display:block;max-width:100%;width:auto;height:auto;touch-action:none}
       reviewNonce=null;reviewBusy=false;
       $('reviewRefresh').disabled=false;
       if(!data.success){reviewStatus('조회 실패: '+(data.message||'서버 오류'));return}
+      if(action==='listTrash'){
+        trashView=true;trashItems=Array.isArray(data.items)?data.items:[];
+        $('reviewTrashToggle').textContent='← 일반 내역 보기';$('reviewTrashHint').hidden=false;renderReviewList(trashItems);
+      }
+      if(action==='trashRequest'||action==='restoreRequest'){
+        reviewImageCache.delete(reviewRequestedId);reviewSelected=null;reviewImageData=null;$('reviewPreviewArea').hidden=true;
+        reviewListCache.delete(reviewPostId);
+        if(action==='trashRequest'){
+          trashView=false;reviewStatus('휴지통으로 이동했습니다.');reviewSend('listRequests');
+        }else{
+          trashItems=trashItems.filter(x=>x.requestId!==reviewRequestedId);renderReviewList(trashItems);
+          reviewStatus('복구했습니다. 일반 내역에서 확인할 수 있습니다.');
+        }
+      }
       if(action==='listRequests'){
         const items=Array.isArray(data.items)?data.items:[];
         reviewListCache.set(reviewPostId,items);
