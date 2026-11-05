@@ -846,6 +846,10 @@ canvas{display:block;max-width:100%;width:auto;height:auto;touch-action:none}
   // 동일 브라우저 세션에서 조회한 JPG를 재사용합니다. 서버 공용 저장은 그대로 유지합니다.
   const reviewImageCache=new Map();
   const MAX_REVIEW_CACHE=5;
+  // 목록은 화면에 즉시 표시하되 매번 서버에서 최신 내역을 확인합니다.
+  const reviewListCache=new Map();
+  let reviewListRefreshPending=false;
+  let lastVerifiedReviewPassword=null;
   let reviewRequestedId='', reviewRequestStart=0, saveStart=0, saveUploadStart=0;
   function rememberReviewImage(id,src){
     if(!id)return;
@@ -868,18 +872,22 @@ canvas{display:block;max-width:100%;width:auto;height:auto;touch-action:none}
     if(!reviewPostId){reviewStatus('게시글 고유번호가 없습니다. 아임웹 게시글에서 열어 주세요.');return}
     reviewNonce=crypto.randomUUID?crypto.randomUUID():String(Date.now())+Math.random();
     reviewAction=action;reviewRequestedId=requestId;reviewRequestStart=performance.now();reviewBusy=true;$('reviewRefresh').disabled=true;
-    reviewStatus(action==='listRequests'?'저장 내역을 불러오는 중…':'이미지를 불러오는 중…');
+    if(action==='listRequests'){
+      const cached=reviewListCache.get(reviewPostId);
+      if(cached && password===lastVerifiedReviewPassword){renderReviewList(cached,true);reviewListRefreshPending=true;reviewStatus('저장된 내역 표시 중 · 최신 내역 확인 중…');}
+      else reviewStatus('저장 내역을 불러오는 중…');
+    }else reviewStatus('이미지를 불러오는 중…');
     const f=$('reviewPostForm');f.action=REQUEST_WEB_APP_URL;
     const values={action,postId:reviewPostId,password,requestId,nonce:reviewNonce};
     Object.entries(values).forEach(([k,v])=>f.elements.namedItem(k).value=v);
     f.submit();
   }
   $('reviewRefresh').onclick=()=>reviewSend('listRequests');
-  function renderReviewList(items){
+  function renderReviewList(items,fromCache=false){
     const list=$('reviewList');list.replaceChildren();
     $('reviewPreviewArea').hidden=true;reviewSelected=null;reviewImageData=null;
-    if(!items.length){reviewStatus('이 게시글에 저장된 내역이 없습니다.');return}
-    reviewStatus('총 '+items.length+'건 · 최신순');
+    if(!items.length){reviewStatus(fromCache?'저장된 내역 없음 · 최신 내역 확인 중…':'이 게시글에 저장된 내역이 없습니다.');return}
+    reviewStatus('총 '+items.length+'건 · 최신순'+(fromCache?' · 최신 내역 확인 중…':''));
     items.forEach((item,i)=>{
       const b=document.createElement('button');b.type='button';b.className='review-entry';
       const dt=item.savedAt?new Date(item.savedAt):null;
@@ -918,6 +926,7 @@ canvas{display:block;max-width:100%;width:auto;height:auto;touch-action:none}
     loadReviewJpg(reviewImageData);
   };
   // 조회용 비밀번호는 브라우저 메모리에만 유지합니다.
+  $('reviewPassword').addEventListener('input',()=>{reviewListCache.clear();lastVerifiedReviewPassword=null});
   $('reviewPassword').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();reviewSend('listRequests')}});
   $('registerRequest').onclick=()=>{
     commitText();
@@ -1045,10 +1054,11 @@ canvas{display:block;max-width:100%;width:auto;height:auto;touch-action:none}
     if(data.nonce===pendingNonce&&pendingNonce){
       pendingNonce=null;$('confirmRegister').disabled=false;hideSaveProgress();
       if(data.success){
-        console.info('[수정 요청] 서버 저장 응답',Math.round(performance.now()-saveUploadStart)+'ms','총',Math.round(performance.now()-saveStart)+'ms');
+        console.info('[수정 요청] 서버 저장 응답',Math.round(performance.now()-saveUploadStart)+'ms','총',Math.round(performance.now()-saveStart)+'ms','서버 처리',data.serverMs??'미측정','ms');
         $('reviewPassword').value=$('requestPassword').value;
         $('requestPassword').value='';hasUnsavedChanges=false;
         registerModal.hidden=true;
+        reviewListCache.delete(reviewPostId);
         if($('reviewPassword').value)reviewSend('listRequests');
         else reviewStatus('등록 완료! 저장 내역을 조회하려면 비밀번호를 입력해 주세요.');
       }else $('requestStatus').textContent='등록 실패: '+(data.message||'서버 오류');
@@ -1056,11 +1066,17 @@ canvas{display:block;max-width:100%;width:auto;height:auto;touch-action:none}
     }
     if(data.nonce===reviewNonce&&reviewNonce){
       const action=reviewAction;
-      console.info('[수정 요청] '+action+' 응답',Math.round(performance.now()-reviewRequestStart)+'ms');
+      console.info('[수정 요청] '+action+' 응답',Math.round(performance.now()-reviewRequestStart)+'ms', '서버 처리',data.serverMs??'미측정','ms');
       reviewNonce=null;reviewBusy=false;
       $('reviewRefresh').disabled=false;
       if(!data.success){reviewStatus('조회 실패: '+(data.message||'서버 오류'));return}
-      if(action==='listRequests')renderReviewList(Array.isArray(data.items)?data.items:[]);
+      if(action==='listRequests'){
+        const items=Array.isArray(data.items)?data.items:[];
+        lastVerifiedReviewPassword=$('reviewPassword').value;
+        reviewListCache.set(reviewPostId,items);
+        reviewListRefreshPending=false;
+        renderReviewList(items);
+      }
       if(action==='getRequestImage'){
         if(!data.imageBase64){reviewStatus('이미지 데이터가 없습니다.');return}
         const src='data:image/jpeg;base64,'+data.imageBase64;
