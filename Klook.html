@@ -137,6 +137,43 @@ canvas{display:block;max-width:100%;width:auto;height:auto;touch-action:none}
 @keyframes save-progress-slide{0%{transform:translateX(-110%)}100%{transform:translateX(300%)}}
 @media(prefers-reduced-motion:reduce){.save-progress-track::before{animation:none;width:100%;opacity:.65}}
 .save-progress-caption{font-size:12px;color:var(--mute);margin-top:7px}
+
+/* 6차: 휴대전화 편집 화면 - 콘텐츠 공간 확보 및 하단 내역 패널 */
+@media(max-width:700px){
+  #landing{padding:20px 16px;justify-content:center}
+  #landing h1{font-size:24px}
+  .drop{padding:32px 16px}
+  #app .bar[role=toolbar]{grid-template-columns:repeat(5,minmax(0,1fr));gap:5px;padding:6px 8px calc(7px + env(safe-area-inset-bottom,0px))}
+  #app .bar[role=toolbar]>button{min-height:44px;padding:6px 1px;font-size:11px;white-space:nowrap}
+  #app .bar[role=toolbar] .sp{grid-template-columns:repeat(3,minmax(0,1fr));gap:5px}
+  #app .bar[role=toolbar] .sp>*{min-height:42px;font-size:11px;padding:5px 2px;white-space:nowrap}
+  #app .bar.sub{max-height:74px;min-height:40px;padding:6px 9px}
+  #app .bar.sub .grp{gap:6px}
+  #app .bar.sub .grp span{font-size:11px}
+  #app main{padding:10px 8px 76px;scrollbar-width:thin}
+  .editor-workspace{isolation:isolate}
+  .review-side{position:absolute;left:0;right:0;top:auto;bottom:0;width:100%;height:min(72dvh,570px);max-height:calc(var(--mobile-viewport-height,100dvh) - 72px);flex:none;border-left:0;border-top:1px solid var(--line);border-radius:16px 16px 0 0;box-shadow:0 -8px 30px #0003;overflow:hidden;z-index:40;transition:height .18s ease}
+  .review-side-head{min-height:48px;flex:0 0 48px;padding:10px 16px;writing-mode:horizontal-tb!important;justify-content:space-between!important;border-radius:16px 16px 0 0}
+  .review-side-body{flex:1;padding:12px 16px calc(18px + env(safe-area-inset-bottom,0px));overscroll-behavior:contain}
+  .review-side.collapsed{left:auto;right:10px;bottom:12px;width:auto;min-width:145px;height:44px;max-height:44px;flex:none;border:1px solid var(--line);border-radius:999px;box-shadow:0 3px 14px #0003}
+  .review-side.collapsed .review-side-head{min-height:42px;height:42px;padding:6px 13px;border:0;border-radius:999px;gap:8px;writing-mode:horizontal-tb}
+  .review-side.collapsed .review-side-body{display:none}
+  .review-preview{max-height:28dvh}
+  .review-entry{min-height:44px;padding:11px}
+  .register-overlay{align-items:center;padding:12px;padding-bottom:calc(12px + env(safe-area-inset-bottom,0px))}
+  .register-dialog{width:100%;max-height:calc(var(--mobile-viewport-height,100dvh) - 24px);padding:20px 16px}
+  .register-dialog input{font-size:16px}
+  .register-buttons button{min-height:46px;flex:1}
+  #app.mobile-typing .review-side{display:none}
+}
+@media(max-width:370px){
+  #app .bar[role=toolbar]>button{font-size:10px;letter-spacing:-.35px}
+  #app .bar[role=toolbar] .sp>*{font-size:10px}
+}
+@media(max-width:700px) and (max-height:600px){
+  #app .bar.sub{max-height:52px;min-height:36px}
+  .review-side{height:75dvh}
+}
 </style>
 </head>
 <body>
@@ -935,11 +972,28 @@ canvas{display:block;max-width:100%;width:auto;height:auto;touch-action:none}
   };
   $('cancelRegister').onclick=()=>{if(pendingNonce)return;registerModal.hidden=true};
   // 저장된 JPG를 한 장의 새 바탕 이미지로 불러옵니다. 기존 주석은 JPG에 합쳐진 상태입니다.
+  // 모바일에서는 작업 공간을 가리지 않도록 수정 요청 내역을 접힌 상태로 시작합니다.
+  function syncMobileReviewPanel(){
+    const side=$('reviewSide');
+    if(isMobileEditor()&&!side.dataset.mobileInitialized){
+      side.dataset.mobileInitialized='1';
+      side.classList.add('collapsed');
+      $('reviewSideToggle').setAttribute('aria-expanded','false');
+      $('reviewSideArrow').textContent='▴';
+    }else if(!isMobileEditor()&&side.dataset.mobileInitialized){
+      delete side.dataset.mobileInitialized;
+      side.classList.remove('collapsed');
+      $('reviewSideToggle').setAttribute('aria-expanded','true');
+      $('reviewSideArrow').textContent='▾';
+    }
+  }
+  window.addEventListener('resize',syncMobileReviewPanel);
+  syncMobileReviewPanel();
   $('reviewSideToggle').onclick=()=>{
     const side=$('reviewSide');
     const collapsed=side.classList.toggle('collapsed');
     $('reviewSideToggle').setAttribute('aria-expanded',String(!collapsed));
-    $('reviewSideArrow').textContent=collapsed?'▸':'▾';
+    $('reviewSideArrow').textContent=collapsed?(isMobileEditor()?'▴':'▸'):'▾';
   };
   $('reviewJpgFile').onchange=e=>{
     const file=e.target.files[0];e.target.value='';
