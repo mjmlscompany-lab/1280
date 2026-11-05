@@ -311,6 +311,9 @@ canvas{display:block;max-width:100%;width:auto;height:auto;touch-action:none}
     font-size:11px!important;line-height:1!important;
   }
 }
+/* 모바일 내역 모달보다 삭제 비밀번호 창이 위에 표시되도록 */
+#trashModal:not([hidden]){z-index:2200}
+@media(max-width:700px){#trashModal .register-dialog{max-height:calc(100dvh - 24px);overflow-y:auto}}
 </style>
 </head>
 <body>
@@ -1092,6 +1095,7 @@ canvas{display:block;max-width:100%;width:auto;height:auto;touch-action:none}
   let reviewListRefreshPending=false;
   let reviewRequestedId='', reviewRequestStart=0, saveStart=0, saveUploadStart=0;
   let trashView=false,trashItems=[],trashIntent=null;
+  let pendingOptimisticTrash=null;
   let savedImageForCache=null;
   function rememberReviewImage(id,src){
     if(!id)return;
@@ -1141,6 +1145,18 @@ canvas{display:block;max-width:100%;width:auto;height:auto;touch-action:none}
     if(!trashIntent)return;const pw=$('trashPassword').value;
     if(!pw){$('trashStatus').textContent='비밀번호를 입력해 주세요.';return;}
     const {action,id}=trashIntent;trashIntent=null;$('trashPassword').value='';$('trashModal').hidden=true;
+    if(action==='trashRequest'){
+      // 비밀번호 입력 이후 목록에서 먼저 숨기고 서버 응답을 기다립니다.
+      const current=reviewListCache.get(reviewPostId);
+      if(Array.isArray(current)){
+        pendingOptimisticTrash={id,original:current.slice()};
+        const next=current.filter(item=>item.requestId!==id);
+        reviewListCache.set(reviewPostId,next);
+        if(reviewSelected?.requestId===id){reviewSelected=null;reviewImageData=null;$('reviewPreviewArea').hidden=true;}
+        renderReviewList(next);
+        reviewStatus('목록에서 숨겼습니다 · 휴지통 이동 처리 중…');
+      }
+    }
     reviewSend(action,id,pw);
   };
   function renderReviewList(items,fromCache=false){
@@ -1416,12 +1432,21 @@ canvas{display:block;max-width:100%;width:auto;height:auto;touch-action:none}
       console.info('[수정 요청] '+action+' 응답',Math.round(performance.now()-reviewRequestStart)+'ms', '서버 처리',data.serverMs??'미측정','ms');
       reviewNonce=null;reviewBusy=false;
       $('reviewRefresh').disabled=false;
-      if(!data.success){reviewStatus('조회 실패: '+(data.message||'서버 오류'));return}
+      if(!data.success){
+        if(action==='trashRequest'&&pendingOptimisticTrash){
+          reviewListCache.set(reviewPostId,pendingOptimisticTrash.original);
+          renderReviewList(pendingOptimisticTrash.original);
+          pendingOptimisticTrash=null;
+          reviewStatus('삭제하지 못했습니다. 목록을 복구했습니다: '+(data.message||'서버 오류'));
+        }else reviewStatus('조회 실패: '+(data.message||'서버 오류'));
+        return;
+      }
       if(action==='listTrash'){
         trashView=true;trashItems=Array.isArray(data.items)?data.items:[];
         $('reviewTrashToggle').textContent='← 일반 내역 보기';$('reviewTrashHint').hidden=false;renderReviewList(trashItems);
       }
       if(action==='trashRequest'||action==='restoreRequest'){
+        if(action==='trashRequest')pendingOptimisticTrash=null;
         reviewImageCache.delete(reviewRequestedId);reviewSelected=null;reviewImageData=null;$('reviewPreviewArea').hidden=true;
         reviewListCache.delete(reviewPostId);
         if(action==='trashRequest'){
