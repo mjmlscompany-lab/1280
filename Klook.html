@@ -1158,6 +1158,9 @@ canvas{display:block;max-width:100%;width:auto;height:auto;touch-action:none}
       if(item.requestId===previousId)b.classList.add('active');
       b.style.whiteSpace='pre-line';
       b.onclick=()=>{
+        // 모바일: 로그 선택 시 현재 편집 내용을 보호한 뒤 바로 편집 화면에 표시합니다.
+        if(isMobileEditor()&&!trashView&&pages.length&&
+           !window.confirm('선택한 수정 요청 이미지로 편집 화면을 교체할까요? 저장하지 않은 수정 내용은 사라집니다.'))return;
         list.querySelectorAll('.review-entry').forEach(x=>x.classList.remove('active'));
         b.classList.add('active');reviewSelected=item;reviewImageData=null;
         $('reviewPreviewArea').hidden=true;
@@ -1166,6 +1169,7 @@ canvas{display:block;max-width:100%;width:auto;height:auto;touch-action:none}
           // 재조회 없이 캐시의 이미지를 보여줍니다.
           rememberReviewImage(item.requestId,cached);
           displayReviewImage(cached,'JPG 미리보기 준비 완료 (임시 캐시)');
+          if(isMobileEditor()&&!trashView)openSelectedReviewOnMobile(cached);
         }else reviewSend('getRequestImage',item.requestId);
       };
       const row=document.createElement('div');row.className='review-entry-row';row.appendChild(b);
@@ -1175,13 +1179,19 @@ canvas{display:block;max-width:100%;width:auto;height:auto;touch-action:none}
       row.appendChild(del);list.appendChild(row);
     });
   }
-  function loadReviewJpg(dataUrl){
+  function openSelectedReviewOnMobile(dataUrl){
+    if(!isMobileEditor()||trashView||!dataUrl)return;
+    // 기존 JPG 이어서 수정하기 기능을 재사용하며 모바일 팝업만 자동으로 닫습니다.
+    loadReviewJpg(dataUrl, true);
+  }
+  function loadReviewJpg(dataUrl, closeMobileAfterLoad=false){
     const preview=$('reviewPreview');
     const img=preview.complete&&preview.naturalWidth&&preview.src===dataUrl?preview:new Image();
     img.onload=()=>{
       commitText();pages=[];history=[];selected=null;drag=null;ed=null;pendingRect=null;
       removeRectActions();$('pages').replaceChildren();$('undo').disabled=true;
       addPage(img);hasUnsavedChanges=false;setTool('rect');
+      if(closeMobileAfterLoad)closeMobileReview();
       reviewStatus('저장된 JPG를 불러왔습니다. 말풍선을 추가해 주세요.');
     };
     img.onerror=()=>reviewStatus('저장된 JPG를 편집기로 불러오지 못했습니다.');
@@ -1431,7 +1441,10 @@ canvas{display:block;max-width:100%;width:auto;height:auto;touch-action:none}
         if(!data.imageBase64){reviewStatus('이미지 데이터가 없습니다.');return}
         const src='data:image/jpeg;base64,'+data.imageBase64;
         rememberReviewImage(reviewRequestedId,src);
-        if(reviewSelected?.requestId===reviewRequestedId)displayReviewImage(src,'JPG 미리보기를 불러왔습니다.');
+        if(reviewSelected?.requestId===reviewRequestedId){
+          displayReviewImage(src,'JPG 미리보기를 불러왔습니다.');
+          if(isMobileEditor()&&!trashView)openSelectedReviewOnMobile(src);
+        }
       }
     }
   });
