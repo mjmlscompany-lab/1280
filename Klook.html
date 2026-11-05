@@ -174,6 +174,16 @@ canvas{display:block;max-width:100%;width:auto;height:auto;touch-action:none}
   #app .bar.sub{max-height:52px;min-height:36px}
   .review-side{height:75dvh}
 }
+
+/* 7차: 가장 중요한 제출 동작을 뚜렷하게 표시 */
+#registerRequest{background:#F97316;color:#fff;border:2px solid #C2410C;font-weight:800;font-size:15px;min-height:46px;padding:10px 18px;box-shadow:0 3px 9px rgba(194,65,12,.24);white-space:nowrap;transition:background-color .15s,box-shadow .15s,transform .15s}
+#registerRequest:hover{background:#EA580C;border-color:#9A3412;box-shadow:0 4px 12px rgba(194,65,12,.32)}
+#registerRequest:active{transform:translateY(1px)}
+#registerRequest:focus-visible{outline:3px solid #FDBA74;outline-offset:3px}
+#registerRequest:disabled{opacity:.55;box-shadow:none}
+@media(max-width:700px){
+  #app .bar[role=toolbar] .sp #registerRequest{grid-column:1/-1;min-height:52px;font-size:16px;font-weight:800;letter-spacing:0;padding:10px 12px;white-space:normal}
+}
 </style>
 </head>
 <body>
@@ -197,7 +207,7 @@ canvas{display:block;max-width:100%;width:auto;height:auto;touch-action:none}
     <div class="sp">
       <button id="undo" disabled>되돌리기</button>
       <button id="saveAll" class="primary">JPG 저장</button>
-      <button id="registerRequest" type="button">수정 요청 등록</button>
+      <button id="registerRequest" type="button" aria-label="수정 요청 등록하기">✉ 수정 요청 등록하기</button>
     </div>
   </div>
   <div class="bar sub">
